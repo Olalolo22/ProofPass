@@ -1,0 +1,22 @@
+# Rust & Cargo
+target/
+**/*.rs.bk
+
+# Sensitive Data & Local PDFs
+*.pdf
+.env
+.env.*
+
+# SP1 & ZK Proof Artifacts
+proof.json
+proof-with-pis.json
+*.fixture
+*.proof
+program/elf/
+
+# Soroban / Stellar CLI Data
+.soroban/
+
+# Implementation Docs
+IMPLEMENTATION_PLAN.md
+IMPLEMENTATION_STATUS.md
