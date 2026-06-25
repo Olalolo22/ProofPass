@@ -1,0 +1,19 @@
+[package]
+name = "zk-accredited-investor-program"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+sp1-zkvm = { workspace = true }
+
+# PDF and crypto crates for use inside SP1 zkVM (must be compatible with no_std + riscv32)
+lopdf = { version = "0.32", default-features = false }  # minimal; add features like "nom" if needed for parsing
+cms = "0.2"
+x509-cert = "0.2"
+sha2 = "0.10"
+regex = "1.10"
+chrono = { version = "0.4", default-features = false, features = ["alloc"] }  # for date parsing
+
+# Optional helpers if needed for byte handling
+hex = { version = "0.4", default-features = false, features = ["alloc"] }
