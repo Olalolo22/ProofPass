@@ -53,18 +53,12 @@ cd ProofPass
 
 ---
 
-## Step 2 — Place the Attestation PDF
+## Step 2 — Verify the Attestation PDF
 
-The PDF is **not committed** to the repo (it's in `.gitignore` for privacy).
-Copy the DocuSign-signed CPA attestation PDF into the `script/` working directory:
+The mock DocuSign-signed CPA attestation PDF is already included in the repository at:
+`sp1-zk-accredited-investor/script/attestation.pdf`
 
-```bash
-cp /path/to/your/attestation.pdf  sp1-zk-accredited-investor/script/attestation.pdf
-```
-
-> ⚠️ The file **must** be named `attestation.pdf` and placed in
-> `sp1-zk-accredited-investor/script/`. The prover reads it from the current
-> working directory at runtime.
+> ⚠️ The prover reads this specific file from the current working directory at runtime. You don't need to copy or move anything yourself!
 
 ---
 
