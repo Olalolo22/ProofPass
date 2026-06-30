@@ -137,16 +137,62 @@ pub fn derive_nullifier(pdf_bytes: &[u8]) -> [u8; 32] {
 
 /// Extract the document date from /Info → /CreationDate (or /ModDate).
 pub fn extract_pdf_date(pdf_bytes: &[u8]) -> Option<u64> {
+    // Primary: document `/Info` dictionary.
+    if let Some(ts) = extract_date_from_info(pdf_bytes) {
+        return Some(ts);
+    }
+
+    // Fallback: some DocuSign-style PDFs expose dates in signature fields.
+    if let Some(ts) = extract_date_from_sig_fields(pdf_bytes) {
+        return Some(ts);
+    }
+
+    None
+}
+
+fn extract_date_from_info(pdf_bytes: &[u8]) -> Option<u64> {
     let doc = Document::load_from(Cursor::new(pdf_bytes)).ok()?;
     let info_ref = doc.trailer.get(b"Info").ok()?.as_reference().ok()?;
     let info = doc.get_object(info_ref).ok()?;
     let dict = info.as_dict().ok()?;
-    let date_obj = dict
-        .get(b"CreationDate")
-        .or_else(|_| dict.get(b"ModDate"))
-        .ok()?;
-    let date_bytes = date_obj.as_str().ok()?;
+    let date_raw = dict.get(b"CreationDate").or_else(|_| dict.get(b"ModDate")).ok()?;
+    let date_bytes = date_raw.as_str().ok()?;
+    eprintln!("[date] Info/CreationDate raw={:?}", std::str::from_utf8(date_bytes).ok());
     parse_pdf_date(date_bytes)
+}
+
+fn extract_date_from_sig_fields(pdf_bytes: &[u8]) -> Option<u64> {
+    if let Ok(doc) = Document::load_from(Cursor::new(pdf_bytes)) {
+        for (id, obj) in &doc.objects {
+            let dict = obj.as_dict().ok()?;
+            let is_sig = dict
+                .get(b"FT")
+                .ok()
+                .and_then(|v| v.as_name().ok())
+                .map(|n| n == b"Sig")
+                .unwrap_or(false)
+                || dict
+                    .get(b"Type")
+                    .ok()
+                    .and_then(|v| v.as_name().ok())
+                    .map(|n| n == b"Sig")
+                    .unwrap_or(false);
+            if !is_sig {
+                continue;
+            }
+            for &key in &[b"M", b"SigningDate", b"Date"] {
+                if let Ok(val) = dict.get(key) {
+                    if let Ok(date_bytes) = val.as_str() {
+                        eprintln!("[date] sig field id={:?} key={:?} raw={:?}", id, key, std::str::from_utf8(date_bytes).ok());
+                        if let Some(ts) = parse_pdf_date(date_bytes) {
+                            return Some(ts);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 fn parse_pdf_date(s: &[u8]) -> Option<u64> {
