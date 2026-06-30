@@ -18,6 +18,11 @@ cms = "0.2"
 x509-cert = "0.2"
 chrono = { version = "0.4", default-features = false, features = ["alloc", "std"] }
 regex = "1.10"
+rsa = { version = "0.9.10", features = ["sha2"] }
+
+[lib]
+name = "script_lib"
+path = "src/lib.rs"
 
 [[bin]]
 name = "prove"
