@@ -180,7 +180,7 @@ fn extract_date_from_sig_fields(pdf_bytes: &[u8]) -> Option<u64> {
             if !is_sig {
                 continue;
             }
-            for &key in &[b"M", b"SigningDate", b"Date"] {
+            for key in [b"M".as_slice(), b"SigningDate".as_slice(), b"Date".as_slice()] {
                 if let Ok(val) = dict.get(key) {
                     if let Ok(date_bytes) = val.as_str() {
                         eprintln!("[date] sig field id={:?} key={:?} raw={:?}", id, key, std::str::from_utf8(date_bytes).ok());
