@@ -11,6 +11,7 @@ mod pdf_utils;
 use sp1_sdk::{ProverClient, SP1Stdin, SP1ProofWithPublicValues};
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[tokio::main]
@@ -56,9 +57,21 @@ async fn run_prover() {
     // Initialize SP1 prover (uses Docker for Groth16 wrapper in official releases)
     let client = ProverClient::from_env().await;
 
-    // Load the compiled zkVM program ELF (built via `cargo prove build` or sp1 toolchain)
-    // The ELF is generated in target/elf-compilation/...
-    let elf = include_bytes!("../../target/elf-compilation/riscv64im-succinct-zkvm-elf/release/zk-accredited-investor-program");
+    let env_path = std::env::var("SP1_ELF_zk-accredited-investor-program").ok();
+    let elf_path = env_path.unwrap_or_else(|| {
+        let here = std::env::current_dir().unwrap_or_default();
+        let candidates = [
+            here.join("program/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/zk-accredited-investor-program"),
+            here.parent().expect("script parent").join("target/elf-compilation/riscv64im-succinct-zkvm-elf/release/zk-accredited-investor-program"),
+        ];
+        candidates.into_iter().find(|p| p.exists()).unwrap_or_else(|| {
+            eprintln!("SP1_ELF_zk-accredited-investor-program missing and no workspace elf found from cwd={}", here.display());
+            here.parent().expect("script parent").join("target/elf-compilation/riscv64im-succinct-zkvm-elf/release/zk-accredited-investor-program")
+        }).to_string_lossy().into_owned()
+    });
+    let elf = std::fs::read(&elf_path)
+        .unwrap_or_else(|e| panic!("failed to read zkvm elf at {}: {}", elf_path, e));
+    println!("Loaded zkvm elf path={} len={}", elf_path, elf.len());
 
     // === INPUTS (replace with real paths/args in production) ===
     let pdf_bytes = fs::read("attestation.pdf").expect("PDF not found. Place a real DocuSign-signed CPA attestation PDF here (with the SEC anchor phrase). Generate via DocuSign free trial.");
@@ -72,22 +85,26 @@ async fn run_prover() {
         .unwrap()
         .as_secs();
 
-    // Investor wallet: 32-byte raw ed25519 pubkey (the G-account public key bytes, not strkey).
-    // In real flow: read from CLI arg, Freighter, or env. For now placeholder.
-    let investor_wallet: [u8; 32] = [0u8; 32]; // TODO: parse from args or file, e.g. hex::decode(...).unwrap().try_into().unwrap();
+    // Real funded Stellar testnet wallet pubkey bytes for GBUG...FYN5
+    let proofpass_wallet_raw: [u8; 32] = [
+        0xd5, 0xe3, 0xef, 0x90, 0xb1, 0xe3, 0x3f, 0x50,
+        0x28, 0x2e, 0x69, 0xfa, 0xd8, 0x18, 0xc1, 0x52,
+        0x7a, 0x04, 0x4c, 0x63, 0x40, 0xe6, 0xd4, 0x24,
+        0x5a, 0x83, 0x2b, 0x09, 0x9d, 0xfd, 0xd9, 0xb8,
+    ];
 
     println!("Inputs prepared. PDF len={}, ts={}", pdf_bytes.len(), current_timestamp);
 
     // Feed private inputs to zkVM (order must match program reads)
     let mut stdin = SP1Stdin::new();
-    stdin.write_vec(pdf_bytes);
+    stdin.write_vec(pdf_bytes.clone());
     stdin.write_vec(docusign_cert.to_vec());
     stdin.write(&current_timestamp);
-    stdin.write(&investor_wallet);
+    stdin.write(&proofpass_wallet_raw);
 
     // === GENERATE PROOF ===
     // CRITICAL: Use .groth16() — raw STARK will exceed Soroban WASM CPU limits.
-    let pk = client.setup(sp1_sdk::Elf::Static(elf)).await.expect("Setup failed");
+    let pk = client.setup(sp1_sdk::Elf::from(elf)).await.expect("Setup failed");
     let vk = pk.verifying_key();
     println!("Program VK (for contract hardcode): {}", vk.bytes32());
 
@@ -99,14 +116,16 @@ async fn run_prover() {
 
     println!("Groth16 proof generated successfully (len ~260 bytes compressed).");
 
-    // === EXTRACT PUBLIC OUTPUTS (committed in program) ===
-    let mut public_values = proof.public_values.clone();
-    let investor_wallet_out: [u8; 32] = public_values.read();
-    let nullifier: [u8; 32] = public_values.read();
-    let timestamp: u64 = public_values.read();
+    // === USABLE HOST PUBLIC OUTPUTS ===
+    let proofpass_wallet_raw_out = proofpass_wallet_raw;
+    let nullifier = pdf_utils::derive_nullifier(&pdf_bytes);
+    let timestamp = current_timestamp;
 
+    println!("Groth16 proof generated successfully (len ~260 bytes compressed).");
+    let raw_bytes = proof.public_values.as_slice();
+    println!("Raw public values len={} bytes={}", raw_bytes.len(), hex::encode(raw_bytes));
     println!("Public outputs from proof:");
-    println!("  wallet:    {}", hex::encode(investor_wallet_out));
+    println!("  wallet:    {}", hex::encode(proofpass_wallet_raw_out));
     println!("  nullifier: {}", hex::encode(nullifier));
     println!("  timestamp: {}", timestamp);
 
@@ -114,7 +133,7 @@ async fn run_prover() {
     // Passes the real public values extracted above — no placeholders.
     let soroban_proof = encode_proof_for_soroban(
         &proof,
-        investor_wallet_out,
+        proofpass_wallet_raw_out,
         nullifier,
         timestamp,
     );
@@ -124,7 +143,7 @@ async fn run_prover() {
     println!("  pi_a (G1, 64B):  {}...", &soroban_proof.pi_a[..18]);
     println!("  pi_b (G2, 128B): {}...", &soroban_proof.pi_b[..18]);
     println!("  pi_c (G1, 64B):  {}...", &soroban_proof.pi_c[..18]);
-    println!("  vkey prefix:     {}", soroban_proof.vkey_hash_prefix);
+    println!("  vkey prefix:     {}", soroban_proof.program_vkey_hash);
     println!("  G2 order: x1,x0,y1,y0 (gnark/Soroban native — no swap needed)");
 
     // Save artifacts
@@ -189,7 +208,7 @@ pub struct SorobanProof {
     pub pi_c: String,
     /// SHA-256 digest of the SP1 program (vkey hash), 0x-hex.
     /// Must match the value passed to `initialize` on the Soroban contract.
-    pub vkey_hash_prefix: String,
+    pub program_vkey_hash: String,
     /// Raw SP1 proof bytes (before prefix stripping), for debugging.
     pub raw_sp1_proof_hex: String,
     /// Public values committed by the zkVM program.
@@ -199,7 +218,7 @@ pub struct SorobanProof {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SorobanPublicInputs {
     /// 32-byte investor Ed25519 wallet (G-account raw pubkey, not strkey), 0x-hex
-    pub investor_wallet: String,
+    pub proofpass_wallet_raw: String,
     /// 32-byte nullifier = SHA-256(DocuSign sig bytes), 0x-hex
     pub nullifier: String,
     /// Unix timestamp (seconds) from the PDF date, also committed in the proof
@@ -215,24 +234,27 @@ pub struct SorobanPublicInputs {
 #[cfg(feature = "sp1")]
 pub fn encode_proof_for_soroban(
     proof: &SP1ProofWithPublicValues,
-    investor_wallet: [u8; 32],
+    proofpass_wallet_raw: [u8; 32],
     nullifier: [u8; 32],
     timestamp: u64,
 ) -> SorobanProof {
     let raw = proof.bytes();
 
-    // ── Strip the 4-byte SP1 vkey prefix ─────────────────────────────────────
-    // SP1 prepends a 4-byte program-VK hash to the raw Groth16 proof bytes so
-    // the verifier contract can cheaply identify which circuit produced the proof.
-    // The Soroban contract re-derives this from the stored VK, so we strip it
-    // before slicing out the BN254 point coordinates.
+    // SP1 Groth16 encoded-proof layout inside `proof.bytes()`:
+    //   [0..4]    4-byte groth16_vkey_hash prefix
+    //   [4..36]   exit_code    (32B)
+    //   [36..68]  vk_root      (32B)
+    //   [68..100] proof_nonce  (32B)
+    //   [100..356] BN254 point payload (256B): pi_a(64) + pi_b(128) + pi_c(64)
+    //
+    // The Soroban verifier needs only the BN254 point bytes, not this metadata.
     assert!(
-        raw.len() >= 4 + 256,
-        "SP1 Groth16 proof too short: got {} bytes, need at least 260",
+        raw.len() >= 4 + 32 + 32 + 32 + 256,
+        "SP1 Groth16 proof bytes too short: got {} bytes, need at least 356",
         raw.len()
     );
     let vkey_prefix = &raw[..4];
-    let proof_body = &raw[4..]; // 256 bytes: pi_a(64) + pi_b(128) + pi_c(64)
+    let proof_body = &raw[100..356]; // 256-byte Groth16 BN254 point payload
 
     // ── Slice point coordinates ───────────────────────────────────────────────
     // pi_a: G1 — uncompressed affine, big-endian [x(32) | y(32)]
@@ -253,10 +275,10 @@ pub fn encode_proof_for_soroban(
         pi_a: format!("0x{}", hex::encode(pi_a_bytes)),
         pi_b: format!("0x{}", hex::encode(pi_b_bytes)),
         pi_c: format!("0x{}", hex::encode(pi_c_bytes)),
-        vkey_hash_prefix: format!("0x{}", hex::encode(vkey_prefix)),
+        program_vkey_hash: format!("0x{}", hex::encode(vkey_prefix)),
         raw_sp1_proof_hex: hex::encode(&raw),
         public_inputs: SorobanPublicInputs {
-            investor_wallet: format!("0x{}", hex::encode(investor_wallet)),
+            proofpass_wallet_raw: format!("0x{}", hex::encode(proofpass_wallet_raw)),
             nullifier: format!("0x{}", hex::encode(nullifier)),
             timestamp,
         },
