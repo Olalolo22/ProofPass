@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/ProofPass.dc.html" },
+    { "source": "/app", "destination": "/ProofPassApp.dc.html" }
+  ]
+}
