@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  ::selection{background:#C24E2C;color:#F3F1EA;}
+  @keyframes ppfade{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+  @keyframes ppblink{0%,49%{opacity:1;}50%,100%{opacity:0;}}
+  @keyframes ppspin{to{transform:rotate(360deg);}}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#F3F1EA;color:#16140F;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;">
+
+  <!-- NAV -->
+  <nav style="border-bottom:1px solid #E1DCCE;background:rgba(243,241,234,0.86);backdrop-filter:blur(10px);position:sticky;top:0;z-index:20;">
+    <div style="max-width:1220px;margin:0 auto;padding:15px 32px;display:flex;align-items:center;justify-content:space-between;gap:20px;">
+      <a href="ProofPass.dc.html" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#16140F;">
+        <span style="width:22px;height:22px;border:1.5px solid #16140F;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;">
+          <span style="width:7px;height:7px;background:#C24E2C;border-radius:50%;"></span>
+        </span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:16px;letter-spacing:-0.01em;">proofpass</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9A937F;letter-spacing:0.08em;">/app</span>
+      </a>
+      <div style="display:flex;align-items:center;gap:18px;">
+        <span style="display:inline-flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.06em;color:#514D42;border:1px solid #D6D0C0;padding:7px 13px;border-radius:999px;">
+          <span style="width:7px;height:7px;border-radius:50%;background:#3E8E5A;box-shadow:0 0 0 3px rgba(62,142,90,0.16);"></span>Stellar Testnet
+        </span>
+        <a href="ProofPass.dc.html" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#16140F;text-decoration:none;">&#8592; Back to site</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- BODY -->
+  <main style="flex:1;width:100%;max-width:1220px;margin:0 auto;padding:44px 32px 64px;">
+    <div style="margin-bottom:34px;animation:ppfade .6s ease both;">
+      <h1 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.2rem,4.4vw,3.4rem);line-height:1.02;letter-spacing:-0.02em;">Verify accreditation</h1>
+      <p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#575346;max-width:560px;">Connect a wallet, load your zero-knowledge proof, and submit it to the Soroban verifier. Your document never leaves this browser.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:24px;align-items:start;">
+
+      <!-- LEFT: CONSOLE -->
+      <section style="background:#F8F5EE;border:1px solid #DFD9C9;border-radius:6px;padding:8px 34px 34px;animation:ppfade .7s ease .05s both;">
+
+        <!-- STEP 1 -->
+        <div style="display:grid;grid-template-columns:38px 1fr;gap:18px;padding:30px 0 26px;border-bottom:1px solid #E7E1D2;">
+          <div ref="{{ setStep1 }}" style="width:30px;height:30px;border-radius:50%;border:1.5px solid #C6C0B0;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A8474;transition:all .3s;">1</div>
+          <div>
+            <div style="font-family:'Newsreader',Georgia,serif;font-size:1.35rem;line-height:1.15;margin-bottom:4px;">Connect Freighter</div>
+            <p style="margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#6E6A5A;">Your Stellar wallet signs the verification transaction.</p>
+            <sc-if value="{{ notConnected }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ connect }}" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#F8F4EC;background:#16140F;border:1px solid #16140F;padding:12px 20px;border-radius:999px;cursor:pointer;transition:all .2s;" style-hover="background:#C24E2C;border-color:#C24E2C;">Connect Freighter</button>
+            </sc-if>
+            <sc-if value="{{ wallet }}" hint-placeholder-val="{{ false }}">
+              <div style="display:inline-flex;align-items:center;gap:10px;background:#EEF3EF;border:1px solid #CBE0D1;border-radius:999px;padding:9px 15px;">
+                <span style="width:8px;height:8px;border-radius:50%;background:#3E8E5A;"></span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#2C6B44;">{{ walletShort }}</span>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+
+        <!-- STEP 2 -->
+        <div style="display:grid;grid-template-columns:38px 1fr;gap:18px;padding:26px 0;border-bottom:1px solid #E7E1D2;">
+          <div ref="{{ setStep2 }}" style="width:30px;height:30px;border-radius:50%;border:1.5px solid #C6C0B0;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A8474;transition:all .3s;">2</div>
+          <div>
+            <div style="font-family:'Newsreader',Georgia,serif;font-size:1.35rem;line-height:1.15;margin-bottom:4px;">Upload proof.json</div>
+            <p style="margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#6E6A5A;">Produced offline by the SP1 zkVM prover and uploaded here. Only public inputs &mdash; investor wallet, nullifier, timestamp &mdash; are shown.</p>
+            <sc-if value="{{ noProof }}" hint-placeholder-val="{{ true }}">
+              <div>
+                <label ref="{{ setDrop }}" onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDrop }}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;border:1.5px dashed #C6C0B0;border-radius:6px;padding:26px 20px;cursor:pointer;transition:all .2s;background:#FBF9F3;">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:20px;color:#C24E2C;">{ }</span>
+                  <span style="font-size:13px;color:#575346;">Drop <code style="font-family:'IBM Plex Mono',monospace;">proof.json</code> or click to browse</span>
+                  <input type="file" accept="application/json,.json" onChange="{{ onFile }}" style="display:none;">
+                </label>
+                <div style="margin-top:12px;font-size:12.5px;color:#8A8474;">No file handy? <a onClick="{{ loadSample }}" style="color:#C24E2C;text-decoration:underline;cursor:pointer;">Load a sample proof</a></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ proof }}" hint-placeholder-val="{{ false }}">
+              <div style="border:1px solid #DFD9C9;border-radius:6px;overflow:hidden;">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;background:#EFEBE0;border-bottom:1px solid #DFD9C9;">
+                  <span style="display:inline-flex;align-items:center;gap:9px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#16140F;"><span style="color:#C24E2C;">&#9679;</span> proof.json <span style="color:#9A937F;">&middot; {{ proofSize }}</span></span>
+                  <a onClick="{{ clearProof }}" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8A8474;cursor:pointer;text-decoration:underline;">replace</a>
+                </div>
+                <div style="padding:6px 14px 10px;">
+                  <sc-for list="{{ signals }}" as="sig" hint-placeholder-count="4">
+                    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid #F0ECE0;">
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.04em;color:#9A937F;text-transform:uppercase;">{{ sig.k }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3B382E;text-align:right;word-break:break-all;">{{ sig.v }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+
+        <!-- STEP 3 -->
+        <div style="display:grid;grid-template-columns:38px 1fr;gap:18px;padding:26px 0 6px;">
+          <div ref="{{ setStep3 }}" style="width:30px;height:30px;border-radius:50%;border:1.5px solid #C6C0B0;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A8474;transition:all .3s;">3</div>
+          <div>
+            <div style="font-family:'Newsreader',Georgia,serif;font-size:1.35rem;line-height:1.15;margin-bottom:4px;">Submit to Soroban</div>
+            <p style="margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#6E6A5A;">The contract verifies the BN254 pairing on-chain and authorizes your trustline.</p>
+            <button onClick="{{ submit }}" disabled="{{ submitDisabled }}" ref="{{ setSubmitBtn }}" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;padding:13px 22px;border-radius:999px;cursor:pointer;transition:all .2s;border:1px solid #C24E2C;background:#C24E2C;color:#F8F4EC;display:inline-flex;align-items:center;gap:10px;" style-hover="background:#16140F;border-color:#16140F;">
+              <span>{{ submitLabel }}</span>
+              <sc-if value="{{ busy }}" hint-placeholder-val="{{ false }}"><span style="width:12px;height:12px;border:2px solid rgba(248,244,236,0.4);border-top-color:#F8F4EC;border-radius:50%;display:inline-block;animation:ppspin .7s linear infinite;"></span></sc-if>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT: VERIFICATION -->
+      <section style="background:#16140F;border:1px solid #16140F;border-radius:6px;overflow:hidden;color:#F3F1EA;animation:ppfade .7s ease .12s both;position:sticky;top:92px;">
+        <div style="position:relative;height:300px;">
+          <div ref="{{ setHost }}" style="position:absolute;inset:0;"></div>
+          <div style="position:absolute;left:0;right:0;bottom:18px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.28em;color:#6E6A5A;text-transform:uppercase;">Verifier</div>
+        </div>
+        <div style="padding:26px 30px 30px;border-top:1px solid #2A271F;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:22px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;color:#8A8474;text-transform:uppercase;">Status</div>
+            <div ref="{{ setStatusPill }}" style="display:inline-flex;align-items:center;gap:9px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;letter-spacing:0.06em;padding:7px 14px;border-radius:999px;border:1px solid #504B3E;color:#B8B2A0;transition:all .3s;">
+              <span ref="{{ setStatusDot }}" style="width:8px;height:8px;border-radius:50%;background:#6E6A5A;transition:all .3s;"></span>
+              <span ref="{{ setStatusText }}">Idle</span>
+            </div>
+          </div>
+
+          <!-- trustline -->
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;color:#8A8474;text-transform:uppercase;margin-bottom:12px;">Trustline authorization</div>
+          <div style="display:flex;align-items:stretch;gap:12px;margin-bottom:22px;">
+            <div style="flex:1;border:1px solid #2A271F;border-radius:5px;padding:14px;background:#1C1A13;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#6E6A5A;text-transform:uppercase;margin-bottom:8px;">Before</div>
+              <div style="display:inline-flex;align-items:center;gap:8px;"><span style="width:8px;height:8px;border-radius:50%;background:#B5573B;"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#D8A28E;">not_authorized</span></div>
+            </div>
+            <div style="display:flex;align-items:center;color:#6E6A5A;font-size:18px;">&#8594;</div>
+            <div ref="{{ setAfterCard }}" style="flex:1;border:1px solid #2A271F;border-radius:5px;padding:14px;background:#1C1A13;transition:all .4s;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#6E6A5A;text-transform:uppercase;margin-bottom:8px;">After</div>
+              <div ref="{{ setAfterVal }}" style="display:inline-flex;align-items:center;gap:8px;"><span style="width:8px;height:8px;border-radius:50%;background:#3A362B;"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#6E6A5A;">pending&hellip;</span></div>
+            </div>
+          </div>
+
+          <!-- tx result -->
+          <div ref="{{ setTxRow }}" style="display:none;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #2A271F;padding-top:18px;">
+            <div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#6E6A5A;text-transform:uppercase;margin-bottom:5px;">Transaction</div>
+              <span ref="{{ setTxHash }}" style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#B8B2A0;">&mdash;</span>
+            </div>
+            <a ref="{{ setTxLink }}" href="#" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#E8A07E;text-decoration:none;border:1px solid #504B3E;padding:9px 14px;border-radius:999px;white-space:nowrap;" style-hover="border-color:#E8A07E;">View on Explorer &#8599;</a>
+          </div>
+
+          <!-- error -->
+          <div ref="{{ setErrBox }}" style="display:none;align-items:flex-start;gap:10px;border-top:1px solid #2A271F;padding-top:16px;margin-top:2px;">
+            <span style="color:#D9663F;font-family:'IBM Plex Mono',monospace;font-size:12px;flex:none;">!</span>
+            <span ref="{{ setErrText }}" style="font-size:12.5px;line-height:1.5;color:#D8A28E;"></span>
+          </div>
+
+          <!-- reset -->
+          <div ref="{{ setResetRow }}" style="display:none;margin-top:16px;text-align:center;">
+            <a onClick="{{ reset }}" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;color:#8A8474;cursor:pointer;text-decoration:underline;">Reset demo</a>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { wallet: null, proof: null, status: 'idle', busy: false, txHash: null };
+
+  setHost = (el) => { this.host = el; };
+  setStep1 = (el) => { this.step1 = el; };
+  setStep2 = (el) => { this.step2 = el; };
+  setStep3 = (el) => { this.step3 = el; };
+  setDrop = (el) => { this.drop = el; };
+  setSubmitBtn = (el) => { this.submitBtn = el; };
+  setStatusPill = (el) => { this.statusPill = el; };
+  setStatusDot = (el) => { this.statusDot = el; };
+  setStatusText = (el) => { this.statusText = el; };
+  setAfterCard = (el) => { this.afterCard = el; };
+  setAfterVal = (el) => { this.afterVal = el; };
+  setTxRow = (el) => { this.txRow = el; };
+  setTxHash = (el) => { this.txHashEl = el; };
+  setTxLink = (el) => { this.txLink = el; };
+  setResetRow = (el) => { this.resetRow = el; };
+  setErrBox = (el) => { this.errBox = el; };
+  setErrText = (el) => { this.errText = el; };
+
+  // All wallet / proof / contract calls go through the adapter in
+  // proofpass-api.js. Swapping mock for real never touches this file.
+  connect = async () => {
+    if (!this.api || this.state.busy) return;
+    this.setState({ busy: true, errorMsg: null });
+    try {
+      const { address } = await this.api.wallet.connect();
+      this.setState({ wallet: address, busy: false });
+    } catch (e) {
+      this.setState({ busy: false, errorMsg: this._msg(e) });
+    }
+  };
+
+  _parse = async (input) => {
+    if (!this.api) return;
+    try {
+      const proof = await this.api.proof.parse(input);
+      this.setState({ proof, errorMsg: null });
+    } catch (e) {
+      this.setState({ errorMsg: 'Could not read proof.json — ' + this._msg(e) });
+    }
+  };
+
+  onFile = (e) => {
+    const f = e.target && e.target.files && e.target.files[0];
+    if (f) this._parse(f);
+  };
+
+  onDragOver = (e) => { e.preventDefault(); if (this.drop) { this.drop.style.borderColor = '#C24E2C'; this.drop.style.background = '#F7ECE6'; } };
+  onDragLeave = (e) => { e.preventDefault(); if (this.drop) { this.drop.style.borderColor = '#C6C0B0'; this.drop.style.background = '#FBF9F3'; } };
+  onDrop = (e) => {
+    e.preventDefault();
+    if (this.drop) { this.drop.style.borderColor = '#C6C0B0'; this.drop.style.background = '#FBF9F3'; }
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) this._parse(f);
+  };
+
+  loadSample = () => { if (this.api) this._parse(this.api.sampleProof()); };
+  clearProof = () => this.setState({ proof: null });
+
+  submit = async () => {
+    if (!this.api || !this.state.wallet || !this.state.proof || this.state.busy) return;
+    this._orb = 'pending';
+    this.setState({ status: 'pending', busy: true, errorMsg: null });
+    try {
+      const res = await this.api.verifier.submit(
+        { address: this.state.wallet, proof: this.state.proof },
+        (stage) => { this._orb = stage; this.setState({ status: stage }); }
+      );
+      this._orb = 'verified';
+      this.setState({ status: 'verified', busy: false, txHash: res.txHash, explorerUrl: res.explorerUrl });
+    } catch (e) {
+      this._orb = 'idle';
+      this.setState({ status: 'error', busy: false, errorMsg: this._msg(e) });
+    }
+  };
+
+  _msg(e) { return (e && e.message) ? e.message : String(e); }
+
+  reset = () => {
+    this._orb = 'idle';
+    this.setState({ wallet: null, proof: null, status: 'idle', busy: false, txHash: null, explorerUrl: null, errorMsg: null });
+  };
+
+  renderVals() {
+    const s = this.state;
+    const walletShort = s.wallet ? (s.wallet.slice(0, 5) + '\u2026' + s.wallet.slice(-5)) : '';
+    const proof = s.proof;
+    const short = (h) => (h && h.length > 20) ? (h.slice(0, 10) + '\u2026' + h.slice(-6)) : h;
+    const signals = proof ? [
+      { k: 'proof system', v: proof.system + ' / ' + proof.curve },
+      { k: 'investor', v: short(proof.investorWallet) },
+      { k: 'nullifier', v: short(proof.nullifier) },
+      { k: 'timestamp', v: String(proof.timestamp) },
+    ] : [];
+    let submitLabel = 'Submit to Soroban';
+    if (s.status === 'pending') submitLabel = 'Submitting\u2026';
+    else if (s.status === 'verifying') submitLabel = 'Verifying\u2026';
+    else if (s.status === 'verified') submitLabel = 'Verified';
+    return {
+      wallet: s.wallet,
+      notConnected: !s.wallet,
+      walletShort,
+      proof: !!proof,
+      noProof: !proof,
+      proofSize: proof ? '1.2 KB' : '',
+      signals,
+      busy: s.busy,
+      submitDisabled: !s.wallet || !proof || s.busy || s.status === 'verified',
+      submitLabel,
+      setHost: this.setHost,
+      setStep1: this.setStep1, setStep2: this.setStep2, setStep3: this.setStep3,
+      setDrop: this.setDrop, setSubmitBtn: this.setSubmitBtn,
+      setStatusPill: this.setStatusPill, setStatusDot: this.setStatusDot, setStatusText: this.setStatusText,
+      setAfterCard: this.setAfterCard, setAfterVal: this.setAfterVal,
+      setTxRow: this.setTxRow, setTxHash: this.setTxHashEl, setTxLink: this.setTxLink, setResetRow: this.setResetRow,
+      setErrBox: this.setErrBox, setErrText: this.setErrText,
+      connect: this.connect, onFile: this.onFile, onDragOver: this.onDragOver, onDragLeave: this.onDragLeave, onDrop: this.onDrop,
+      loadSample: this.loadSample, clearProof: this.clearProof, submit: this.submit, reset: this.reset,
+    };
+  }
+
+  componentDidMount() {
+    this._orb = 'idle';
+    this._syncUI();
+    this._initThree();
+    import('./proofpass-api.js')
+      .then((m) => { this.api = m; })
+      .catch((e) => { console.warn('adapter load failed', e); this.setState({ errorMsg: 'Adapter failed to load' }); });
+  }
+
+  componentDidUpdate() { this._syncUI(); }
+
+  componentWillUnmount() {
+    this._alive = false;
+    if (this._raf) cancelAnimationFrame(this._raf);
+    clearTimeout(this._t1); clearTimeout(this._t2);
+    window.removeEventListener('resize', this._onResize);
+    if (this._t && this._t.renderer) { try { this._t.renderer.dispose(); } catch (e) {} }
+  }
+
+  _setStep(el, mode) {
+    if (!el) return;
+    if (mode === 'done') {
+      el.style.background = '#3E8E5A'; el.style.borderColor = '#3E8E5A'; el.style.color = '#F3F1EA'; el.textContent = '\u2713';
+    } else if (mode === 'active') {
+      el.style.background = '#16140F'; el.style.borderColor = '#16140F'; el.style.color = '#F8F4EC';
+    } else {
+      el.style.background = 'transparent'; el.style.borderColor = '#C6C0B0'; el.style.color = '#8A8474';
+    }
+  }
+
+  _syncUI() {
+    const s = this.state;
+    // steps
+    const n = s.wallet ? (s.wallet.slice(0, 5)) : '1';
+    this._setStep(this.step1, s.wallet ? 'done' : 'active');
+    if (this.step1 && !s.wallet) this.step1.textContent = '1';
+    this._setStep(this.step2, s.proof ? 'done' : (s.wallet ? 'active' : 'idle'));
+    if (this.step2 && !s.proof) this.step2.textContent = '2';
+    const step3mode = s.status === 'verified' ? 'done' : ((s.wallet && s.proof) ? 'active' : 'idle');
+    this._setStep(this.step3, step3mode);
+    if (this.step3 && s.status !== 'verified') this.step3.textContent = '3';
+
+    // status pill
+    const map = {
+      idle: { t: 'Idle', dot: '#6E6A5A', border: '#504B3E', col: '#B8B2A0', bg: 'transparent' },
+      pending: { t: 'Pending', dot: '#E8A07E', border: '#7A5140', col: '#E8A07E', bg: 'rgba(194,78,44,0.12)' },
+      verifying: { t: 'Verifying', dot: '#E8A07E', border: '#7A5140', col: '#E8A07E', bg: 'rgba(194,78,44,0.14)' },
+      verified: { t: 'Verified \u2713', dot: '#4FB776', border: '#2C6B44', col: '#7FD09B', bg: 'rgba(62,142,90,0.16)' },
+      error: { t: 'Error', dot: '#D9663F', border: '#7A4030', col: '#E89A7E', bg: 'rgba(194,78,44,0.14)' },
+    };
+    const m = map[s.status] || map.idle;
+    if (this.statusText) this.statusText.textContent = m.t;
+    if (this.statusDot) { this.statusDot.style.background = m.dot; this.statusDot.style.boxShadow = (s.status === 'verifying' || s.status === 'pending') ? '0 0 0 4px rgba(232,160,126,0.18)' : (s.status === 'verified' ? '0 0 0 4px rgba(79,183,118,0.2)' : 'none'); }
+    if (this.statusPill) { this.statusPill.style.borderColor = m.border; this.statusPill.style.color = m.col; this.statusPill.style.background = m.bg; }
+
+    // trustline after
+    const verified = s.status === 'verified';
+    if (this.afterCard) { this.afterCard.style.borderColor = verified ? '#2C6B44' : '#2A271F'; this.afterCard.style.background = verified ? 'rgba(62,142,90,0.1)' : '#1C1A13'; }
+    if (this.afterVal) {
+      this.afterVal.innerHTML = verified
+        ? '<span style="width:8px;height:8px;border-radius:50%;background:#4FB776;"></span><span style="font-family:\'IBM Plex Mono\',monospace;font-size:12.5px;color:#7FD09B;">authorized</span>'
+        : '<span style="width:8px;height:8px;border-radius:50%;background:#3A362B;"></span><span style="font-family:\'IBM Plex Mono\',monospace;font-size:12.5px;color:#6E6A5A;">pending\u2026</span>';
+    }
+
+    // tx row
+    if (this.txRow) this.txRow.style.display = verified ? 'flex' : 'none';
+    if (this.resetRow) this.resetRow.style.display = (s.status !== 'idle') ? 'block' : 'none';
+    if (verified && s.txHash) {
+      if (this.txHashEl) this.txHashEl.textContent = s.txHash.slice(0, 8) + '\u2026' + s.txHash.slice(-8);
+      if (this.txLink) this.txLink.href = s.explorerUrl || ('https://stellar.expert/explorer/testnet/tx/' + s.txHash);
+    }
+    // error banner
+    if (this.errBox) {
+      if (s.status === 'error' && s.errorMsg) { this.errBox.style.display = 'flex'; if (this.errText) this.errText.textContent = s.errorMsg; }
+      else { this.errBox.style.display = 'none'; }
+    }
+  }
+
+  async _initThree() {
+    if (!this.host) return;
+    this._alive = true;
+    let THREE;
+    try { THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js'); }
+    catch (e) { console.warn('three load failed', e); return; }
+    if (!this._alive || !this.host) return;
+
+    const host = this.host;
+    const w = host.clientWidth || 400, h = host.clientHeight || 300;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(46, w / h, 0.1, 100);
+    camera.position.set(0, 0, 4.2);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(w, h);
+    renderer.setClearColor(0x000000, 0);
+    host.appendChild(renderer.domElement);
+    renderer.domElement.style.display = 'block';
+
+    // sprite
+    const cs = 64, cv = document.createElement('canvas'); cv.width = cv.height = cs;
+    const cx = cv.getContext('2d');
+    const g = cx.createRadialGradient(cs / 2, cs / 2, 0, cs / 2, cs / 2, cs / 2);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.5, 'rgba(255,255,255,0.8)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    cx.fillStyle = g; cx.fillRect(0, 0, cs, cs);
+    const sprite = new THREE.CanvasTexture(cv);
+
+    const N = 2600;
+    const shell = new Float32Array(N * 3);
+    const cloud = new Float32Array(N * 3);
+    const cur = new Float32Array(N * 3);
+    const seed = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const u = Math.random(), v = Math.random();
+      const th = 2 * Math.PI * u, ph = Math.acos(2 * v - 1);
+      const R = 1.15;
+      shell[i * 3] = R * Math.sin(ph) * Math.cos(th);
+      shell[i * 3 + 1] = R * Math.sin(ph) * Math.sin(th);
+      shell[i * 3 + 2] = R * Math.cos(th) * Math.sin(ph) + R * Math.cos(ph) * 0; // keep on sphere
+      shell[i * 3 + 2] = R * Math.cos(ph);
+      const rr = 1.7 + Math.random() * 1.1;
+      cloud[i * 3] = rr * Math.sin(ph) * Math.cos(th);
+      cloud[i * 3 + 1] = rr * Math.sin(ph) * Math.sin(th);
+      cloud[i * 3 + 2] = rr * Math.cos(ph);
+      cur[i * 3] = cloud[i * 3]; cur[i * 3 + 1] = cloud[i * 3 + 1]; cur[i * 3 + 2] = cloud[i * 3 + 2];
+      seed[i] = Math.random() * Math.PI * 2;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(cur, 3));
+    const mat = new THREE.PointsMaterial({ size: 0.045, map: sprite, transparent: true, depthWrite: false, opacity: 0.95, color: new THREE.Color(0.7, 0.66, 0.58) });
+    const points = new THREE.Points(geo, mat);
+    const group = new THREE.Group(); group.add(points); scene.add(group);
+
+    // wireframe ring for structure
+    const ringGeo = new THREE.TorusGeometry(1.15, 0.004, 8, 120);
+    const ringMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.76, 0.31, 0.17), transparent: true, opacity: 0 });
+    const ring = new THREE.Mesh(ringGeo, ringMat); group.add(ring);
+
+    this._t = { THREE, scene, camera, renderer, group, geo, mat, points, ring, ringMat, shell, cloud, cur, seed, N };
+
+    this._onResize = () => {
+      if (!this.host || !this._t) return;
+      const ww = this.host.clientWidth || 400, hh = this.host.clientHeight || 300;
+      this._t.camera.aspect = ww / hh; this._t.camera.updateProjectionMatrix(); this._t.renderer.setSize(ww, hh);
+    };
+    window.addEventListener('resize', this._onResize);
+
+    this._clock = new THREE.Clock();
+    this._conv = 0; // 0=cloud, 1=shell
+    this._col = new THREE.Color(0.7, 0.66, 0.58);
+    this._animate();
+  }
+
+  _animate = () => {
+    if (!this._alive || !this._t) return;
+    this._raf = requestAnimationFrame(this._animate);
+    const T = this._t, THREE = T.THREE;
+    const dt = Math.min(this._clock.getDelta(), 0.05);
+    this._elapsed = (this._elapsed || 0) + dt;
+    const tw = this._elapsed;
+    const st = this._orb || 'idle';
+
+    // targets per state
+    let convTarget = 0, spin = 0.12, jitter = 0.02;
+    let target = new THREE.Color(0.7, 0.66, 0.58);
+    if (st === 'idle') { convTarget = 0.06; spin = 0.1; jitter = 0.02; target.setRGB(0.62, 0.58, 0.5); }
+    else if (st === 'pending') { convTarget = 0.35; spin = 0.5; jitter = 0.05; target.setRGB(0.88, 0.63, 0.49); }
+    else if (st === 'verifying') { convTarget = 0.78; spin = 1.7; jitter = 0.08; target.setRGB(0.87, 0.5, 0.3); }
+    else if (st === 'verified') { convTarget = 1.0; spin = 0.28; jitter = 0.012; target.setRGB(0.31, 0.72, 0.46); }
+
+    this._conv += (convTarget - this._conv) * (1 - Math.pow(0.02, dt));
+    const c = this._conv;
+    this._col.lerp(target, 1 - Math.pow(0.05, dt));
+    T.mat.color.copy(this._col);
+
+    const pos = T.geo.attributes.position.array;
+    const { shell, cloud, cur, seed, N } = T;
+    const ease = 1 - Math.pow(0.02, dt);
+    for (let i = 0; i < N; i++) {
+      const k = i * 3;
+      const tx = cloud[k] + (shell[k] - cloud[k]) * c;
+      const ty = cloud[k + 1] + (shell[k + 1] - cloud[k + 1]) * c;
+      const tz = cloud[k + 2] + (shell[k + 2] - cloud[k + 2]) * c;
+      cur[k] += (tx - cur[k]) * ease;
+      cur[k + 1] += (ty - cur[k + 1]) * ease;
+      cur[k + 2] += (tz - cur[k + 2]) * ease;
+      const s = seed[i];
+      pos[k] = cur[k] + Math.sin(tw * 1.1 + s) * jitter;
+      pos[k + 1] = cur[k + 1] + Math.cos(tw * 0.9 + s) * jitter;
+      pos[k + 2] = cur[k + 2] + Math.sin(tw * 1.3 + s * 1.2) * jitter;
+    }
+    T.geo.attributes.position.needsUpdate = true;
+
+    this._yaw = (this._yaw || 0) + dt * spin;
+    T.group.rotation.y = this._yaw;
+    T.group.rotation.x = Math.sin(tw * 0.2) * 0.2;
+
+    // ring appears on verified
+    const ringTarget = st === 'verified' ? 0.9 : (st === 'verifying' ? 0.25 : 0);
+    T.ringMat.opacity += (ringTarget - T.ringMat.opacity) * (1 - Math.pow(0.05, dt));
+    T.ringMat.color.copy(this._col);
+    T.ring.rotation.z = this._yaw * 1.5;
+    T.ring.rotation.x = Math.PI / 2.4;
+
+    T.renderer.render(T.scene, T.camera);
+  };
+}
+</script>
+</body>
+</html>

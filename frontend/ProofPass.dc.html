@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  ::selection{background:#C24E2C;color:#F3F1EA;}
+  @keyframes ppfade{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
+  @keyframes ppblink{0%,49%{opacity:1;}50%,100%{opacity:0;}}
+</style>
+</helmet>
+<div style="background:#F3F1EA;color:#16140F;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;position:relative;">
+
+  <!-- NAV -->
+  <nav style="position:fixed;top:0;left:0;right:0;z-index:50;backdrop-filter:blur(10px);background:rgba(243,241,234,0.72);border-bottom:1px solid #E1DCCE;">
+    <div style="max-width:1300px;margin:0 auto;padding:16px 40px;display:flex;align-items:center;justify-content:space-between;gap:24px;">
+      <a href="#top" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#16140F;">
+        <span style="width:22px;height:22px;border:1.5px solid #16140F;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;position:relative;">
+          <span style="width:7px;height:7px;background:#C24E2C;border-radius:50%;"></span>
+        </span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:16px;letter-spacing:-0.01em;">proofpass</span>
+      </a>
+      <div style="display:flex;align-items:center;gap:30px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.04em;">
+        <a href="#problem" style="color:#514D42;text-decoration:none;" style-hover="color:#16140F;">Problem</a>
+        <a href="#how" style="color:#514D42;text-decoration:none;" style-hover="color:#16140F;">How it works</a>
+        <a href="#why" style="color:#514D42;text-decoration:none;" style-hover="color:#16140F;">Why ProofPass</a>
+        <a href="#stack" style="color:#514D42;text-decoration:none;" style-hover="color:#16140F;">Tech stack</a>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <a href="https://github.com" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#16140F;text-decoration:none;padding:9px 4px;">GitHub</a>
+        <a href="ProofPassApp.dc.html" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#F8F4EC;background:#C24E2C;text-decoration:none;padding:10px 18px;border-radius:999px;border:1px solid #C24E2C;white-space:nowrap;" style-hover="background:#16140F;border-color:#16140F;">Launch App</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <header id="top" style="position:relative;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:120px 40px 60px;">
+    <div ref="{{ setHost }}" style="position:absolute;inset:0;z-index:0;"></div>
+    <div style="position:relative;z-index:2;max-width:1300px;margin:0 auto;width:100%;pointer-events:none;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#C24E2C;margin-bottom:28px;animation:ppfade .8s ease both;">Zero-knowledge compliance for real-world assets on Stellar</div>
+      <h1 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;line-height:0.94;letter-spacing:-0.02em;font-size:clamp(3.2rem,9.2vw,9.5rem);">
+        <span style="display:block;animation:ppfade .9s ease both;">Prove you qualify.</span>
+        <span style="display:block;text-align:right;font-style:italic;animation:ppfade .9s ease .12s both;">Reveal nothing.</span>
+      </h1>
+    </div>
+    <div style="position:relative;z-index:2;max-width:1300px;margin:0 auto;width:100%;margin-top:auto;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:40px;padding-top:56px;">
+      <p style="margin:0;max-width:460px;font-size:16px;line-height:1.6;color:#3B382E;animation:ppfade 1s ease .2s both;">ProofPass lets users prove eligibility for regulated financial products without revealing sensitive documents — using zero-knowledge proofs, verified on Stellar.</p>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;animation:ppfade 1s ease .3s both;pointer-events:auto;">
+        <a href="ProofPassApp.dc.html" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:#F8F4EC;background:#16140F;text-decoration:none;padding:16px 26px;border-radius:999px;border:1px solid #16140F;display:inline-flex;align-items:center;gap:10px;white-space:nowrap;" style-hover="background:#C24E2C;border-color:#C24E2C;">Try Demo <span style="font-size:14px;">&#8594;</span></a>
+        <a href="https://github.com" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:#16140F;background:transparent;text-decoration:none;padding:16px 26px;border-radius:999px;border:1px solid #C6C0B0;display:inline-flex;align-items:center;gap:10px;" style-hover="border-color:#16140F;">GitHub</a>
+      </div>
+    </div>
+    <div style="position:absolute;bottom:26px;left:50%;transform:translateX(-50%);z-index:2;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.2em;color:#8A8474;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:8px;">
+      <span><span data-phase="1">DOCUMENT</span><span style="animation:ppblink 1.1s steps(1) infinite;">_</span></span>
+    </div>
+  </header>
+
+  <!-- STATS BAND (dark) -->
+  <section style="background:#16140F;color:#F3F1EA;">
+    <div style="max-width:1300px;margin:0 auto;padding:70px 40px;display:grid;grid-template-columns:repeat(4,1fr);gap:32px;">
+      <div data-reveal>
+        <div style="font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:clamp(2.2rem,4vw,3.4rem);letter-spacing:-0.02em;color:#E8A07E;">$580M+</div>
+        <div style="margin-top:10px;font-size:13px;line-height:1.5;color:#9A9484;">Tokenized RWA settling on the Stellar network</div>
+      </div>
+      <div data-reveal>
+        <div style="font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:clamp(2.2rem,4vw,3.4rem);letter-spacing:-0.02em;color:#E8A07E;">~200%</div>
+        <div style="margin-top:10px;font-size:13px;line-height:1.5;color:#9A9484;">Recent growth in Stellar&#39;s real-world asset market</div>
+      </div>
+      <div data-reveal>
+        <div style="font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:clamp(2.2rem,4vw,3.4rem);letter-spacing:-0.02em;color:#E8A07E;">~260&#8202;B</div>
+        <div style="margin-top:10px;font-size:13px;line-height:1.5;color:#9A9484;">Size of a ProofPass Groth16 proof, verified on-chain</div>
+      </div>
+      <div data-reveal>
+        <div style="font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:clamp(2.2rem,4vw,3.4rem);letter-spacing:-0.02em;color:#E8A07E;">0</div>
+        <div style="margin-top:10px;font-size:13px;line-height:1.5;color:#9A9484;">Documents stored, exchanged, or exposed to breach</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROBLEM -->
+  <section id="problem" style="max-width:1300px;margin:0 auto;padding:130px 40px;">
+    <div style="display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);gap:80px;align-items:start;">
+      <div style="position:sticky;top:110px;" data-reveal>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#C24E2C;text-transform:uppercase;margin-bottom:22px;">01 &mdash; The problem</div>
+        <h2 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.4rem,4.4vw,4rem);line-height:1.02;letter-spacing:-0.02em;">Eligibility shouldn&#39;t cost you your privacy.</h2>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:30px;" data-reveal>
+        <p style="margin:0;font-size:17px;line-height:1.65;color:#3B382E;">Every day, financial institutions ask people to hand over their most sensitive documents — not because they want them, but because regulation requires proof of eligibility. The result is a compliance process built on paperwork and centralized databases full of sensitive information that become an attractive target for breach.</p>
+        <p style="margin:0;font-size:17px;line-height:1.65;color:#3B382E;">Under SEC Regulation D, Rule 501(a), only <em>accredited investors</em> — those with a net worth exceeding $1,000,000, excluding the value of their primary residence — may access certain private investment products, including tokenized RWAs. This is a hard legal gate, not an optional check.</p>
+        <div style="border-top:1px solid #D6D0C0;padding-top:28px;margin-top:6px;">
+          <p style="margin:0;font-family:'Newsreader',Georgia,serif;font-style:italic;font-size:clamp(1.4rem,2.4vw,2rem);line-height:1.3;color:#16140F;">The settlement infrastructure exists. The compliant, privacy-preserving investor verification layer does not.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHY DIFFERENT -->
+  <section style="border-top:1px solid #E1DCCE;background:#EFEBE0;">
+    <div style="max-width:1300px;margin:0 auto;padding:130px 40px;">
+      <div style="max-width:760px;margin-bottom:60px;" data-reveal>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#C24E2C;text-transform:uppercase;margin-bottom:22px;">02 &mdash; Why it&#39;s different</div>
+        <h2 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.4rem,4.4vw,4rem);line-height:1.02;letter-spacing:-0.02em;">Not a checkbox wrapped in cryptography.</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+        <div style="background:#F6F3EB;border:1px solid #DFD9C9;border-radius:4px;padding:40px;display:flex;flex-direction:column;gap:18px;" data-reveal>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9A937F;">Most ZK compliance</div>
+          <h3 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:1.7rem;line-height:1.2;color:#6E6A5A;">Proves a user typed &ldquo;true&rdquo; into a form.</h3>
+          <p style="margin:0;font-size:15px;line-height:1.6;color:#6E6A5A;">The circuit verifies a self-reported claim — inputs like <code style="font-family:'IBM Plex Mono',monospace;font-size:0.85em;">kycPassed</code> or <code style="font-family:'IBM Plex Mono',monospace;font-size:0.85em;">sanctionsClear</code> supplied directly by the user, with no external authority backing them.</p>
+        </div>
+        <div style="background:#16140F;border:1px solid #16140F;border-radius:4px;padding:40px;display:flex;flex-direction:column;gap:18px;color:#F3F1EA;" data-reveal>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#E8A07E;">ProofPass</div>
+          <h3 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:1.7rem;line-height:1.2;">Proves a real, signed document contains the statutory language it claims.</h3>
+          <p style="margin:0;font-size:15px;line-height:1.6;color:#B8B2A0;">Issued by a licensed professional and chained back to a publicly recognized certificate authority. We don&#39;t ask &ldquo;do you say you&#39;re compliant.&rdquo; We ask &ldquo;can you prove a trusted third party already verified this&rdquo; — and check the cryptographic math ourselves.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how" style="max-width:1300px;margin:0 auto;padding:130px 40px;">
+    <div style="max-width:760px;margin-bottom:70px;" data-reveal>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#C24E2C;text-transform:uppercase;margin-bottom:22px;">03 &mdash; How it works</div>
+      <h2 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.4rem,4.4vw,4rem);line-height:1.02;letter-spacing:-0.02em;">From signed PDF to on-chain authorization.</h2>
+    </div>
+    <sc-for list="{{ steps }}" as="step" hint-placeholder-count="3">
+      <div style="display:grid;grid-template-columns:80px 200px 1fr;gap:32px;align-items:start;padding:34px 0;border-top:1px solid #D6D0C0;" data-reveal>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#C24E2C;letter-spacing:0.08em;">{{ step.num }}</div>
+        <div style="font-family:'Newsreader',Georgia,serif;font-size:1.7rem;font-weight:400;line-height:1.1;letter-spacing:-0.01em;">{{ step.title }}</div>
+        <div style="font-size:15.5px;line-height:1.62;color:#3B382E;max-width:640px;">{{ step.body }}</div>
+      </div>
+    </sc-for>
+    <div style="border-top:1px solid #16140F;margin-top:0;padding-top:28px;display:flex;align-items:center;gap:14px;">
+      <span style="width:8px;height:8px;background:#C24E2C;border-radius:50%;flex:none;"></span>
+      <p style="margin:0;font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.02em;color:#16140F;">No documents change hands. No sensitive data is stored.</p>
+    </div>
+  </section>
+
+  <!-- WHY PROOFPASS -->
+  <section id="why" style="border-top:1px solid #E1DCCE;background:#EFEBE0;">
+    <div style="max-width:1300px;margin:0 auto;padding:130px 40px;">
+      <div style="max-width:760px;margin-bottom:60px;" data-reveal>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#C24E2C;text-transform:uppercase;margin-bottom:22px;">04 &mdash; Why ProofPass</div>
+        <h2 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.4rem,4.4vw,4rem);line-height:1.02;letter-spacing:-0.02em;">Compliance that keeps the secret.</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#D6D0C0;border:1px solid #D6D0C0;border-radius:4px;overflow:hidden;">
+        <div style="background:#F6F3EB;padding:38px 30px;display:flex;flex-direction:column;gap:16px;min-height:250px;" data-reveal>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#C24E2C;">&#8594; 01</div>
+          <h3 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:1.5rem;line-height:1.14;letter-spacing:-0.01em;">No sensitive documents stored</h3>
+          <p style="margin:auto 0 0;font-size:14px;line-height:1.6;color:#575346;">The document never leaves the user&#39;s device. There is no honeypot database to breach, subpoena, or leak.</p>
+        </div>
+        <div style="background:#F6F3EB;padding:38px 30px;display:flex;flex-direction:column;gap:16px;min-height:250px;" data-reveal>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#C24E2C;">&#8594; 02</div>
+          <h3 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:1.5rem;line-height:1.14;letter-spacing:-0.01em;">Privacy by default</h3>
+          <p style="margin:auto 0 0;font-size:14px;line-height:1.6;color:#575346;">Zero-knowledge from the ground up. The chain learns only one bit: this wallet qualifies. Nothing about who, how much, or from where.</p>
+        </div>
+        <div style="background:#F6F3EB;padding:38px 30px;display:flex;flex-direction:column;gap:16px;min-height:250px;" data-reveal>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#C24E2C;">&#8594; 03</div>
+          <h3 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:1.5rem;line-height:1.14;letter-spacing:-0.01em;">Cryptographically verifiable</h3>
+          <p style="margin:auto 0 0;font-size:14px;line-height:1.6;color:#575346;">Every authorization is backed by a Groth16 proof anyone can check on-chain &mdash; not a checkbox, not a trusted admin&#39;s word.</p>
+        </div>
+        <div style="background:#F6F3EB;padding:38px 30px;display:flex;flex-direction:column;gap:16px;min-height:250px;" data-reveal>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#C24E2C;">&#8594; 04</div>
+          <h3 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:1.5rem;line-height:1.14;letter-spacing:-0.01em;">Built for regulated tokenized assets</h3>
+          <p style="margin:auto 0 0;font-size:14px;line-height:1.6;color:#575346;">Authorization flows natively into the Stellar Asset Contract&#39;s trustline model &mdash; the settlement rail RWAs already run on.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRUST MODEL -->
+  <section id="trust" style="background:#16140F;color:#F3F1EA;">
+    <div style="max-width:1300px;margin:0 auto;padding:130px 40px;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#E8A07E;text-transform:uppercase;margin-bottom:60px;" data-reveal>05 &mdash; Trust model</div>
+      <div style="max-width:1000px;margin:0 auto;text-align:center;" data-reveal>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;color:#8A8474;text-transform:uppercase;margin-bottom:30px;">The statutory anchor phrase</div>
+        <blockquote style="margin:0;font-family:'Newsreader',Georgia,serif;font-style:italic;font-weight:300;font-size:clamp(2rem,5vw,4.4rem);line-height:1.12;letter-spacing:-0.015em;">&ldquo;&hellip;excluding the value of their primary&nbsp;residence.&rdquo;</blockquote>
+        <p style="margin:36px auto 0;max-width:620px;font-size:16px;line-height:1.65;color:#B8B2A0;">SEC Rule 501(a) mandates this exact exclusion. Every legitimate CPA attestation letter must contain it — CPAs do not get creative with this language. That makes it a reliable, legally-mandated anchor for the proof circuit to target.</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#2A271F;border:1px solid #2A271F;border-radius:4px;margin-top:80px;overflow:hidden;">
+        <sc-for list="{{ trust }}" as="t" hint-placeholder-count="3">
+          <div style="background:#16140F;padding:36px 34px;display:flex;flex-direction:column;gap:14px;" data-reveal>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#E8A07E;">{{ t.tag }}</div>
+            <div style="font-family:'Newsreader',Georgia,serif;font-size:1.35rem;line-height:1.2;">{{ t.title }}</div>
+            <p style="margin:0;font-size:14px;line-height:1.6;color:#9A9484;">{{ t.body }}</p>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- VISION -->
+  <section id="vision" style="max-width:1300px;margin:0 auto;padding:130px 40px;">
+    <div style="display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);gap:80px;align-items:start;">
+      <div style="position:sticky;top:110px;" data-reveal>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#C24E2C;text-transform:uppercase;margin-bottom:22px;">06 &mdash; Vision</div>
+        <h2 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.4rem,4.4vw,4rem);line-height:1.02;letter-spacing:-0.02em;">One primitive. Every &ldquo;can you prove&nbsp;this.&rdquo;</h2>
+        <p style="margin:26px 0 0;font-size:16px;line-height:1.65;color:#3B382E;max-width:400px;">The accredited-investor gate is ProofPass&#39;s first implementation, not its ceiling. Proving a signed document satisfies a policy — without revealing it — generalizes anywhere a system asks for proof.</p>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#D6D0C0;border:1px solid #D6D0C0;border-radius:4px;overflow:hidden;" data-reveal>
+        <sc-for list="{{ vision }}" as="v" hint-placeholder-count="6">
+          <div style="background:#F3F1EA;padding:34px 30px;min-height:150px;display:flex;flex-direction:column;justify-content:space-between;gap:20px;" style-hover="background:#EFEBE0;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#C24E2C;">{{ v.num }}</div>
+            <div style="font-family:'Newsreader',Georgia,serif;font-size:1.45rem;line-height:1.15;letter-spacing:-0.01em;">{{ v.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- TECH STACK -->
+  <section id="stack" style="border-top:1px solid #E1DCCE;background:#EFEBE0;">
+    <div style="max-width:1300px;margin:0 auto;padding:130px 40px;">
+      <div style="display:grid;grid-template-columns:minmax(0,0.8fr) minmax(0,1.2fr);gap:80px;align-items:start;">
+        <div style="position:sticky;top:110px;" data-reveal>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#C24E2C;text-transform:uppercase;margin-bottom:22px;">07 &mdash; Tech stack</div>
+          <h2 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.4rem,4.4vw,4rem);line-height:1.02;letter-spacing:-0.02em;">Standard tools, wired for zero&#8209;knowledge.</h2>
+          <p style="margin:26px 0 0;font-size:16px;line-height:1.65;color:#3B382E;max-width:380px;">Nothing exotic. A proving stack the ZK community already trusts, settling on the network RWAs already use.</p>
+        </div>
+        <div style="display:flex;flex-direction:column;" data-reveal>
+          <sc-for list="{{ stack }}" as="s" hint-placeholder-count="5">
+            <div style="display:grid;grid-template-columns:34px 190px 1fr;gap:26px;align-items:baseline;padding:28px 0;border-top:1px solid #D6D0C0;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#9A937F;">{{ s.idx }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:1.15rem;letter-spacing:-0.01em;color:#16140F;">{{ s.name }}</div>
+              <div style="font-size:14.5px;line-height:1.55;color:#575346;">{{ s.role }}</div>
+            </div>
+          </sc-for>
+          <div style="border-top:1px solid #D6D0C0;"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA (dark) -->
+  <section id="cta" style="background:#16140F;color:#F3F1EA;">
+    <div style="max-width:1300px;margin:0 auto;padding:150px 40px;text-align:center;">
+      <p style="margin:0 auto 40px;max-width:820px;font-family:'Newsreader',Georgia,serif;font-weight:300;font-style:italic;font-size:clamp(1.6rem,3.4vw,2.8rem);line-height:1.28;color:#D8D2C2;" data-reveal>The internet was built around sharing documents. Regulated finance should be built around sharing proofs.</p>
+      <h2 style="margin:0 0 48px;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(3rem,8vw,7rem);line-height:0.96;letter-spacing:-0.02em;" data-reveal>Prove it.<span style="font-style:italic;"> Reveal nothing.</span></h2>
+      <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;" data-reveal>
+        <a href="ProofPassApp.dc.html" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;background:#C24E2C;text-decoration:none;padding:17px 30px;border-radius:999px;border:1px solid #C24E2C;display:inline-flex;align-items:center;gap:10px;color:#F8F4EC;white-space:nowrap;" style-hover="background:#F3F1EA;color:#16140F;border-color:#F3F1EA;">Launch App <span style="font-size:14px;">&#8594;</span></a>
+        <a href="https://github.com" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:#F3F1EA;background:transparent;text-decoration:none;padding:17px 30px;border-radius:999px;border:1px solid #504B3E;display:inline-flex;align-items:center;" style-hover="border-color:#F3F1EA;">View on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer style="background:#16140F;color:#F3F1EA;border-top:1px solid #2A271F;">
+    <div style="max-width:1300px;margin:0 auto;padding:70px 40px 44px;display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:40px;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+          <span style="width:22px;height:22px;border:1.5px solid #F3F1EA;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;">
+            <span style="width:7px;height:7px;background:#C24E2C;border-radius:50%;"></span>
+          </span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:16px;">proofpass</span>
+        </div>
+        <p style="margin:0;max-width:300px;font-size:14px;line-height:1.6;color:#9A9484;">A zero-knowledge compliance layer for real-world assets on Stellar.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#6E6A5A;margin-bottom:4px;">Protocol</div>
+        <a href="#problem" style="font-size:14px;color:#C4BEAE;text-decoration:none;" style-hover="color:#F3F1EA;">The problem</a>
+        <a href="#how" style="font-size:14px;color:#C4BEAE;text-decoration:none;" style-hover="color:#F3F1EA;">How it works</a>
+        <a href="#trust" style="font-size:14px;color:#C4BEAE;text-decoration:none;" style-hover="color:#F3F1EA;">Trust model</a>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#6E6A5A;margin-bottom:4px;">Developers</div>
+        <a href="https://github.com" target="_blank" rel="noopener" style="font-size:14px;color:#C4BEAE;text-decoration:none;" style-hover="color:#F3F1EA;">GitHub</a>
+        <a href="#" style="font-size:14px;color:#C4BEAE;text-decoration:none;" style-hover="color:#F3F1EA;">Docs</a>
+        <a href="ProofPassApp.dc.html" style="font-size:14px;color:#C4BEAE;text-decoration:none;" style-hover="color:#F3F1EA;">Launch App</a>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#6E6A5A;margin-bottom:4px;">Company</div>
+        <a href="#vision" style="font-size:14px;color:#C4BEAE;text-decoration:none;" style-hover="color:#F3F1EA;">Vision</a>
+        <a href="#" style="font-size:14px;color:#C4BEAE;text-decoration:none;" style-hover="color:#F3F1EA;">Team</a>
+        <a href="#" style="font-size:14px;color:#C4BEAE;text-decoration:none;" style-hover="color:#F3F1EA;">Contact</a>
+      </div>
+    </div>
+    <div style="max-width:1300px;margin:0 auto;padding:22px 40px 40px;border-top:1px solid #2A271F;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.06em;color:#6E6A5A;">
+      <span>Stellar Hacks: Real-World ZK &middot; July 2026</span>
+      <span>Built with SP1 zkVM &middot; Groth16 BN254 &middot; Soroban</span>
+    </div>
+  </footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;particleCount&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 9000, &quot;min&quot;: 3000, &quot;max&quot;: 14000, &quot;step&quot;: 1000, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Animation&quot; },
+  &quot;animationMode&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;Auto cycle&quot;, &quot;options&quot;: [&quot;Auto cycle&quot;, &quot;Document&quot;, &quot;Proof&quot;, &quot;Stellar&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Animation&quot; },
+  &quot;particleTint&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;Duotone&quot;, &quot;options&quot;: [&quot;Duotone&quot;, &quot;Monochrome ink&quot;, &quot;Warm accent&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Animation&quot; },
+  &quot;parallax&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Animation&quot; }
+}">
+class Component extends DCLogic {
+  state = { phaseLabel: 'DOCUMENT' };
+
+  setHost = (el) => { this.host = el; };
+
+  renderVals() {
+    return {
+      phaseLabel: this.state.phaseLabel,
+      setHost: this.setHost,
+      steps: [
+        { num: '01', title: 'Sign the attestation', body: 'The investor obtains a DocuSign-signed CPA attestation letter — the standard proof of accredited-investor status — carrying a PKCS#7 digital signature chained to a publicly trusted certificate authority. The document never leaves their hands.' },
+        { num: '02', title: 'Prove with SP1 zkVM', body: 'An SP1 zkVM program verifies the signature, confirms the document is under 90 days old, matches the SEC Rule 501(a) statutory phrase, and derives a replay nullifier — then compresses to a ~260-byte Groth16 proof over BN254. All computed locally; the document is never revealed.' },
+        { num: '03', title: 'Verify on Stellar & unlock', body: 'The proof and its public inputs are submitted to the ZkInvestorGate Soroban contract, which checks the BN254 pairing on-chain, records the nullifier, and calls the Stellar Asset Contract to flip the investor\u2019s trustline to authorized — opening the tokenized RWA pool.' },
+      ],
+      trust: [
+        { tag: 'Trust anchor', title: 'DigiCert Trusted Root G4', body: 'The same class of publicly-recognized root certificate a browser uses to validate HTTPS — the chain DocuSign\u2019s eSignature platform signs with. Self-signed, expires 2038.' },
+        { tag: 'No middlemen', title: 'No notary, no relay', body: 'No notary network, no relay server, no third-party trust assumption beyond a certificate authority already trusted throughout the internet.' },
+        { tag: 'Native to Stellar', title: 'Authorization lives on-chain', body: 'ProofPass keeps no internal list of approved investors. Authorization state lives natively via the Stellar Asset Contract\u2019s trustline mechanism.' },
+      ],
+      stack: [
+        { idx: '01', name: 'Stellar', role: 'Fast, low-cost settlement layer where $580M+ of tokenized real-world assets already live.' },
+        { idx: '02', name: 'Soroban', role: 'Stellar\u2019s smart-contract platform \u2014 hosts the ZkInvestorGate verifier and manages authorization state.' },
+        { idx: '03', name: 'SP1 zkVM', role: 'Succinct RISC-V zkVM runs the compliance program: signature check, recency, statutory phrase, nullifier.' },
+        { idx: '04', name: 'Groth16 / BN254', role: 'Compresses the proof to a constant ~260 bytes, verified on-chain via Protocol 26 native pairing.' },
+        { idx: '05', name: 'Freighter', role: 'Stellar wallet the investor signs the verify_and_authorize transaction with.' },
+      ],
+      vision: [
+        { num: '\u2192 01', label: 'AML & KYC verification' },
+        { num: '\u2192 02', label: 'Proof of residency or jurisdiction' },
+        { num: '\u2192 03', label: 'DAO & organizational membership' },
+        { num: '\u2192 04', label: 'Professional licensing verification' },
+        { num: '\u2192 05', label: 'Institutional compliance reporting' },
+        { num: '\u2192 06', label: 'Anywhere a system asks \u201Cprove it\u201D' },
+      ],
+    };
+  }
+
+  componentDidMount() {
+    this._setupReveal();
+    this._initThree();
+  }
+
+  componentDidUpdate(prev) {
+    const p = this.props || {};
+    if (!this._t) return;
+    if (prev.particleCount !== p.particleCount || prev.particleTint !== p.particleTint) {
+      this._rebuild();
+    }
+  }
+
+  componentWillUnmount() {
+    this._alive = false;
+    if (this._raf) cancelAnimationFrame(this._raf);
+    window.removeEventListener('resize', this._onResize);
+    window.removeEventListener('pointermove', this._onMove);
+    if (this._onScrollReveal) { window.removeEventListener('scroll', this._onScrollReveal); document.removeEventListener('scroll', this._onScrollReveal, true); }
+    if (this._revealTimer) clearTimeout(this._revealTimer);
+    if (this._io) this._io.disconnect();
+    if (this._t && this._t.renderer) { try { this._t.renderer.dispose(); } catch (e) {} }
+  }
+
+  _reveal(el) {
+    el.style.transition = 'opacity .8s ease, transform .8s cubic-bezier(.2,.7,.2,1)';
+    el.style.opacity = '1';
+    el.style.transform = 'none';
+  }
+
+  _setupReveal() {
+    const els = () => Array.from(document.querySelectorAll('[data-reveal]'));
+    const supported = 'IntersectionObserver' in window;
+    const revealVisible = () => {
+      els().forEach((el) => {
+        if (el.dataset.shown) return;
+        const r = el.getBoundingClientRect();
+        if (r.top < (window.innerHeight || 800) * 0.94 && r.bottom > 0) {
+          el.dataset.shown = '1';
+          this._reveal(el);
+          if (this._io) this._io.unobserve(el);
+        }
+      });
+    };
+    if (supported) {
+      this._io = new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting && !e.target.dataset.shown) {
+            e.target.dataset.shown = '1';
+            this._reveal(e.target);
+            this._io.unobserve(e.target);
+          }
+        });
+      }, { threshold: 0.1, rootMargin: '0px 0px -6% 0px' });
+    }
+    setTimeout(() => {
+      els().forEach((el) => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(22px)';
+        if (this._io) this._io.observe(el);
+      });
+      revealVisible();
+    }, 30);
+    // Fallbacks: reveal on any scroll, and a hard safety timer so nothing stays hidden.
+    this._onScrollReveal = () => revealVisible();
+    window.addEventListener('scroll', this._onScrollReveal, { passive: true });
+    document.addEventListener('scroll', this._onScrollReveal, { passive: true, capture: true });
+    this._revealTimer = setTimeout(() => {
+      els().forEach((el) => { if (!el.dataset.shown) { el.dataset.shown = '1'; this._reveal(el); } });
+    }, 4000);
+  }
+
+  // ---- palette ----
+  _tintColors() {
+    const ink = [0.086, 0.078, 0.058];
+    const inkLt = [0.30, 0.28, 0.24];
+    const acc = [0.760, 0.306, 0.172];
+    const accLt = [0.878, 0.627, 0.494];
+    const mode = (this.props && this.props.particleTint) || 'Duotone';
+    return { ink, inkLt, acc, accLt, mode };
+  }
+
+  // ---- state generators ----
+  _makeDoc(n) {
+    const p = new Float32Array(n * 3);
+    const lines = 30, halfW = 1.15, top = 1.55, bottom = -1.55;
+    for (let i = 0; i < n; i++) {
+      let li = Math.floor(Math.random() * lines);
+      const y = top - (li / (lines - 1)) * (top - bottom);
+      const isShort = (li % 6 === 5);
+      const frac = isShort ? 0.35 + Math.random() * 0.15 : 0.72 + Math.random() * 0.26;
+      const x = -halfW + Math.random() * (2 * halfW) * frac;
+      const z = (Math.random() - 0.5) * 0.08;
+      p[i * 3] = x; p[i * 3 + 1] = y + (Math.random() - 0.5) * 0.02; p[i * 3 + 2] = z;
+    }
+    return p;
+  }
+
+  _makeProof(n) {
+    const p = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const u = Math.random(), v = Math.random();
+      const theta = 2 * Math.PI * u;
+      const phi = Math.acos(2 * v - 1);
+      const r = 0.62 * Math.cbrt(Math.random());
+      p[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      p[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      p[i * 3 + 2] = r * Math.cos(phi);
+    }
+    return p;
+  }
+
+  _makeStellar(n) {
+    const p = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const core = i < n * 0.16;
+      let r, ang;
+      if (core) {
+        r = 0.25 + Math.sqrt(Math.random()) * 0.5;
+      } else {
+        r = 0.75 + Math.sqrt(Math.random()) * 2.35;
+      }
+      ang = Math.random() * Math.PI * 2 + r * 0.85; // spiral swirl
+      const thick = (Math.random() - 0.5) * (0.16 / (0.35 + r));
+      p[i * 3] = Math.cos(ang) * r;
+      p[i * 3 + 1] = thick + (Math.random() - 0.5) * 0.05;
+      p[i * 3 + 2] = Math.sin(ang) * r;
+    }
+    return p;
+  }
+
+  _makeColors(n) {
+    const c = new Float32Array(n * 3);
+    const { ink, inkLt, acc, accLt, mode } = this._tintColors();
+    for (let i = 0; i < n; i++) {
+      let col;
+      const r = Math.random();
+      if (mode === 'Warm accent') {
+        col = r < 0.5 ? acc : accLt;
+      } else if (mode === 'Monochrome ink') {
+        col = r < 0.7 ? ink : inkLt;
+      } else { // Duotone
+        if (r < 0.16) col = accLt;
+        else if (r < 0.24) col = acc;
+        else col = r < 0.82 ? ink : inkLt;
+      }
+      c[i * 3] = col[0]; c[i * 3 + 1] = col[1]; c[i * 3 + 2] = col[2];
+    }
+    return c;
+  }
+
+  async _initThree() {
+    if (!this.host) return;
+    this._alive = true;
+    let THREE;
+    try {
+      THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
+    } catch (e) { console.warn('three load failed', e); return; }
+    if (!this._alive || !this.host) return;
+    this.THREE = THREE;
+
+    const host = this.host;
+    const w = host.clientWidth || window.innerWidth;
+    const h = host.clientHeight || window.innerHeight;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
+    camera.position.set(0, 0, 5.4);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(w, h);
+    renderer.setClearColor(0x000000, 0);
+    host.appendChild(renderer.domElement);
+    renderer.domElement.style.display = 'block';
+
+    // round sprite
+    const csize = 64;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = csize;
+    const cx = cv.getContext('2d');
+    const g = cx.createRadialGradient(csize / 2, csize / 2, 0, csize / 2, csize / 2, csize / 2);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.55, 'rgba(255,255,255,0.85)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    cx.fillStyle = g;
+    cx.fillRect(0, 0, csize, csize);
+    const sprite = new THREE.CanvasTexture(cv);
+
+    const group = new THREE.Group();
+    scene.add(group);
+
+    this._t = { THREE, scene, camera, renderer, group, sprite };
+    this._buildParticles();
+
+    this._mouse = { x: 0, y: 0, tx: 0, ty: 0 };
+    this._onMove = (e) => {
+      this._mouse.tx = (e.clientX / window.innerWidth - 0.5);
+      this._mouse.ty = (e.clientY / window.innerHeight - 0.5);
+    };
+    window.addEventListener('pointermove', this._onMove);
+
+    this._onResize = () => {
+      if (!this.host || !this._t) return;
+      const ww = this.host.clientWidth || window.innerWidth;
+      const hh = this.host.clientHeight || window.innerHeight;
+      this._t.camera.aspect = ww / hh;
+      this._t.camera.updateProjectionMatrix();
+      this._t.renderer.setSize(ww, hh);
+    };
+    window.addEventListener('resize', this._onResize);
+
+    this._phase = 0;
+    this._clock = new THREE.Clock();
+    this._animate();
+  }
+
+  _buildParticles() {
+    const T = this._t; const THREE = T.THREE;
+    const n = Math.max(2000, Math.min(16000, (this.props && this.props.particleCount) || 7000));
+    this._n = n;
+    this._doc = this._makeDoc(n);
+    this._proof = this._makeProof(n);
+    this._stellar = this._makeStellar(n);
+    this._cur = Float32Array.from(this._doc);
+    this._seed = new Float32Array(n);
+    for (let i = 0; i < n; i++) this._seed[i] = Math.random() * Math.PI * 2;
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(this._cur, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(this._makeColors(n), 3));
+    const mat = new THREE.PointsMaterial({
+      size: 0.03, sizeAttenuation: true, map: T.sprite,
+      vertexColors: true, transparent: true, opacity: 0.92,
+      depthWrite: false, alphaTest: 0.02,
+    });
+    const points = new THREE.Points(geo, mat);
+    T.group.add(points);
+    T.points = points; T.geo = geo; T.mat = mat;
+  }
+
+  _rebuild() {
+    const T = this._t; if (!T) return;
+    if (T.points) { T.group.remove(T.points); T.geo.dispose(); T.mat.dispose(); }
+    this._buildParticles();
+  }
+
+  _animate = () => {
+    if (!this._alive || !this._t) return;
+    this._raf = requestAnimationFrame(this._animate);
+    const T = this._t; const dt = Math.min(this._clock.getDelta(), 0.05);
+    const mode = (this.props && this.props.animationMode) || 'Auto cycle';
+
+    // phase target selection
+    let seg, i0, i1, f;
+    const nodes = [this._doc, this._proof, this._stellar];
+    const tiltNodes = [-0.10, -0.10, -0.52];
+    if (mode === 'Document') { i0 = 0; i1 = 0; f = 0; }
+    else if (mode === 'Proof') { i0 = 1; i1 = 1; f = 0; }
+    else if (mode === 'Stellar') { i0 = 2; i1 = 2; f = 0; }
+    else {
+      this._phase += dt * 0.055;
+      const cyc = this._phase % 1;
+      seg = cyc * 3;
+      i0 = Math.floor(seg) % 3;
+      i1 = (i0 + 1) % 3;
+      let raw = seg - Math.floor(seg);
+      f = Math.min(1, Math.max(0, (raw - 0.18) / 0.64));
+      f = f * f * (3 - 2 * f); // smoothstep
+    }
+    const labels = ['DOCUMENT', 'PROOF', 'STELLAR'];
+    const lbl = f < 0.5 ? labels[i0] : labels[i1];
+    if (!this._lblEl) this._lblEl = document.querySelector('[data-phase]');
+    if (this._lblEl && this._lblEl.textContent !== lbl) this._lblEl.textContent = lbl;
+
+    const a = nodes[i0], b = nodes[i1];
+    const cur = this._cur; const pos = T.geo.attributes.position.array;
+    const time = (this._clock.elapsedTime || (this._clock.elapsedTime = 0));
+    this._elapsed = (this._elapsed || 0) + dt;
+    const tw = this._elapsed;
+    const ease = 1 - Math.pow(0.0025, dt); // frame-rate independent lerp ~
+    for (let i = 0; i < this._n; i++) {
+      const k = i * 3;
+      const tx = a[k] + (b[k] - a[k]) * f;
+      const ty = a[k + 1] + (b[k + 1] - a[k + 1]) * f;
+      const tz = a[k + 2] + (b[k + 2] - a[k + 2]) * f;
+      cur[k] += (tx - cur[k]) * ease;
+      cur[k + 1] += (ty - cur[k + 1]) * ease;
+      cur[k + 2] += (tz - cur[k + 2]) * ease;
+      const s = this._seed[i];
+      pos[k] = cur[k] + Math.sin(tw * 0.6 + s) * 0.012;
+      pos[k + 1] = cur[k + 1] + Math.cos(tw * 0.5 + s) * 0.012;
+      pos[k + 2] = cur[k + 2] + Math.sin(tw * 0.7 + s * 1.3) * 0.012;
+    }
+    T.geo.attributes.position.needsUpdate = true;
+
+    // tilt + rotation
+    const tilt = tiltNodes[i0] + (tiltNodes[i1] - tiltNodes[i0]) * f;
+    this._yaw = (this._yaw || 0) + dt * 0.06;
+    const par = (this.props && this.props.parallax) === false ? 0 : 1;
+    if (this._mouse) {
+      this._mouse.x += (this._mouse.tx - this._mouse.x) * 0.05;
+      this._mouse.y += (this._mouse.ty - this._mouse.y) * 0.05;
+    }
+    T.group.rotation.y = this._yaw + (this._mouse ? this._mouse.x * 0.5 * par : 0);
+    T.group.rotation.x = tilt + (this._mouse ? this._mouse.y * 0.28 * par : 0);
+
+    T.renderer.render(T.scene, T.camera);
+  };
+}
+</script>
+</body>
+</html>
