@@ -1,119 +1,101 @@
-# ProofPass — ZK Accredited Investor Gate
+# ProofPass
 
-Zero-knowledge proof system allowing investors to prove SEC accredited status (net worth > $1M excluding primary residence) from a DocuSign-signed CPA attestation PDF, without revealing the document. On-chain verification on Stellar Soroban flips an AUTH_REQUIRED trustline on a tokenized RWA yield pool.
+**Zero-knowledge accredited investor verification on Stellar Soroban.**
 
-**Built for Stellar Hacks: Real-World ZK (deadline June 29, 2026).**
+Most ZK compliance projects prove that a user typed "true" into a form. The circuit verifies a self-reported claim — no external authority backs it. It's a checkbox wrapped in cryptography.
 
-See [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) for the full approved implementation plan, architecture decisions, reference locations, and verification steps.
+ProofPass proves something different: that a real, cryptographically signed document — issued by a licensed CPA and chained back to a recognized certificate authority — actually contains the statutory language required by SEC Rule 501(a). We don't ask "do you say you're compliant." We ask "can you prove a trusted third party already verified this," and check the cryptographic math ourselves.
 
-## High-Level Flow (per brief)
+**Built for Stellar Hacks: Real-World ZK (June 2026).**
 
-Investor PDF (DocuSign CPA) → Local SP1 zkVM (sig check, date <90d, anchor phrase, nullifier) → Groth16 BN254 proof → Soroban contract verifies (Protocol 26 BN254) → stores nullifier + credential → calls SAC set_authorized → investor can access pool.
+📄 [Read the whitepaper](./ProofPass_White_Paper.pdf) · 🎥 [Watch the demo](https://youtu.be/S-8OnzhOo9Q)
 
-**Never use raw STARK on Soroban.** Always `.groth16()`.
+---
+
+## How It Works
+
+1. Investor obtains a DocuSign-signed CPA attestation PDF confirming net worth > $1M (excluding primary residence) per SEC Rule 501(a)
+2. SP1 zkVM runs locally — verifies the PKCS#7 signature against DigiCert Trusted Root G4, confirms document recency (<90 days), matches the SEC anchor phrase, generates a nullifier
+3. STARK proof is wrapped into Groth16 BN254 — raw STARKs exceed Soroban's WASM instruction limit; Protocol 26's native BN254 host functions handle the pairing checks at the network level
+4. Investor submits the proof via Freighter wallet to the Soroban contract
+5. Contract verifies the proof, stores the nullifier (replay prevention), records a 5-year credential, and calls `set_authorized` on the Stellar Asset Contract
+6. `AUTH_REQUIRED` trustline flips — investor can now access the tokenized RWA yield pool
+
+The document never leaves the investor's machine.
+
+---
+
+## Stack
+
+- **SP1 zkVM** (Succinct) — guest program handles PDF sig verification, date recency, anchor phrase extraction, nullifier derivation
+- **Groth16 BN254** — STARK → Groth16 wrapping for Soroban compatibility
+- **Soroban** — on-chain verifier using Protocol 26 BN254 host functions + SAC `set_authorized`
+- **Freighter** — wallet frontend for proof submission
+- **Trust anchor** — DigiCert Trusted Root G4 (DocuSign's CA chain)
+
+---
 
 ## Project Layout
 
-```
 ProofPass/
-├── sp1-zk-accredited-investor/     # SP1 program + host prover script
-│   ├── program/                    # The zkVM guest (no_main)
-│   ├── script/                     # Prover host (generates proof.json)
+├── sp1-zk-accredited-investor/     # SP1 program + host prover
+│   ├── program/                    # zkVM guest (no_main)
+│   ├── script/                     # Prover host → proof.json
 │   └── Cargo.toml
-├── soroban-zk-investor-gate/       # Soroban contract (verifier + gate)
+├── soroban-zk-investor-gate/       # Soroban verifier + gate contract
 │   ├── src/lib.rs
 │   ├── src/test.rs
 │   └── Cargo.toml
-├── IMPLEMENTATION_PLAN.md
-├── sample-attestation.pdf          # (you provide — real DocuSign signed PDF)
+├── ProofPass_White_Paper.pdf
 └── README.md
-```
+
+
+---
 
 ## Prerequisites
 
 - Rust + Cargo
 - SP1 toolchain: `curl -L https://sp1up.succinct.xyz | bash && sp1up`
 - Stellar CLI: `cargo install --locked stellar-cli --features opt`
-- Docker (for SP1 Groth16 prover in many SP1 releases)
-- A real DocuSign trial account + signed PDF containing the exact phrases:
-  - "net worth in excess of $1,000,000, excluding the value of their primary residence"
-  - (or the spouse variant)
+- Docker (SP1 Groth16 prover)
+- A real DocuSign-signed CPA attestation PDF containing the phrase: *"net worth in excess of $1,000,000, excluding the value of their primary residence"*
 
-## Build Order (Do Not Skip)
+---
 
-Follow the plan's Day 1 / Day 2 / Day 3 checklist in IMPLEMENTATION_PLAN.md.
-
-### Quick Start (once tools installed)
+## Quick Start
 
 ```bash
-# 1. SP1 project
-cd sp1-zk-accredited-investor
+# 1. Build the zkVM guest
+cd sp1-zk-accredited-investor/program
+cargo prove build
 
-# Build the zkVM program (produces the ELF)
-cd program
-cargo prove build   # or the sp1 equivalent after sp1up
-
-# 2. Run the prover host (place your real attestation.pdf in the script dir first)
+# 2. Run the prover (place attestation.pdf in script/ first)
 cd ../script
 cargo run --release --bin prove
+# → produces proof.json
 
-# This produces proof.json with pi_a/b/c + public_inputs
-
-# 3. Soroban contract
+# 3. Build the Soroban contract
 cd ../../soroban-zk-investor-gate
 stellar contract build
 
-# Deploy + initialize (on testnet or local)
-# stellar contract deploy ...
-# stellar contract invoke --id $ID -- initialize --vk '...' --program_vkey '...'
+# 4. Deploy + initialize
+stellar contract deploy ...
+stellar contract invoke --id $ID -- initialize --vk '...' --program_vkey '...'
 
-# 4. Invoke verify_and_authorize with values from proof.json + your RWA SAC address.
-```
+# 5. Submit proof
+stellar contract invoke --id $ID -- verify_and_authorize ...
 
-See the plan for exact commands, TTL handling, G2 endian notes, and how to obtain/hardcode the DocuSign root CA + SP1 VK bytes.
 
-## Proof Output (for frontend)
+Critical Notes
 
-`proof.json` contains (per brief):
+	•	Never use raw STARK on Soroban. Always .groth16()
+	•	G2 coordinate order: Soroban reverses pairs vs EVM
+	•	Persistent storage TTL extensions are mandatory for nullifier and credential storage
+	•	Hardcode only the trusted DocuSign root CA
 
-```json
-{
-  "pi_a": "0x...",
-  "pi_b": "0x...",
-  "pi_c": "0x...",
-  "public_inputs": {
-    "investor_wallet": "...",
-    "nullifier": "...",
-    "timestamp": 1234567890
-  }
-}
-```
+References
 
-Frontend connects Freighter wallet and submits `verify_and_authorize`.
-
-## Testing & Verification
-
-- Unit tests for PDF logic (outside zkVM first).
-- SP1 prove (STARK sanity + Groth16).
-- Soroban `cargo test` + `stellar contract test ...`.
-- On-chain: nullifier replay prevention, 90-day recency, 5-year credential expiry, SAC trustline flip.
-- Cost: monitor with `env.cost_estimate().budget().print()` (target << 100M CPU).
-
-Full E2E requires a test RWA asset (AUTH_REQUIRED flag set by issuer) + funded accounts.
-
-## Critical Notes
-
-- G2 coordinate order: Soroban reverses pairs vs EVM (see plan + sp1-solana + brief).
-- Persistent storage TTL extensions are mandatory.
-- Use real signed PDF throughout.
-- Hardcode only trusted DocuSign root.
-
-## References (study before coding changes)
-
-- SP1 Groth16 examples & SDK
-- stellar/soroban-examples groth16_verifier + import_ark_bn254
-- NethermindEth/stellar-risc0-verifier (Groth16 BN254 on Soroban)
-- succinctlabs/sp1-solana (SP1 proof layout + public input hashing)
-- developers.stellar.org/docs/build/apps/zk + CAP-0074
-
-Contributions / questions: follow the plan. Good luck with the hackathon!
+	•	SP1 zkVM
+	•	stellar/soroban-examples groth16_verifier
+	•	NethermindEth/stellar-risc0-verifier
+	•	Stellar ZK docs + CAP-0074
