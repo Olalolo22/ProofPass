@@ -8,7 +8,8 @@ ProofPass proves something different: that a real, cryptographically signed docu
 
 **Built for Stellar Hacks: Real-World ZK (June 2026).**
 
-📄 [Read the whitepaper](./ProofPass_White_Paper.pdf) · 🎥 [Watch the demo](https://youtu.be/S-8OnzhOo9Q)
+ [Read the whitepaper](https://github.com/Olalolo22/ProofPass/raw/main/ProofPass%20White%20Paper.pdf
+· 🎥 [Watch the demo](https://youtu.be/S-8OnzhOo9Q)
 
 ---
 
