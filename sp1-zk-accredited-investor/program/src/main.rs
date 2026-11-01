@@ -15,12 +15,12 @@ pub fn main() {
     let signature_valid = verify_pkcs7_signature(&pdf_bytes, &docusign_cert_der);
     assert!(signature_valid, "PDF signature invalid");
 
-    // Step 2: Extract PDF issue date and check recency
+    // Step 2: Extract PDF issue date and check recency (1-year CPA attestation window)
     let pdf_date = extract_pdf_date(&pdf_bytes);
-    let ninety_days_seconds: u64 = 90 * 24 * 60 * 60;
+    let max_age_seconds: u64 = 365 * 24 * 60 * 60;
     assert!(
-        current_timestamp - pdf_date <= ninety_days_seconds,
-        "Document older than 90 days"
+        current_timestamp - pdf_date <= max_age_seconds,
+        "Document older than 365 days"
     );
 
     // Step 3: Parse PDF text layer and run regex
@@ -47,16 +47,12 @@ fn verify_pkcs7_signature(pdf_bytes: &[u8], _cert_der: &[u8]) -> bool {
 }
 
 fn extract_signature_bytes(pdf_bytes: &[u8]) -> Option<Vec<u8>> {
-    // Look for /Contents<...> or (....) near signature patterns.
-    // A more robust version scans for /ByteRange [ ... ] and extracts the corresponding ranges.
+    // Scan for /Contents <hex> pattern and trim trailing null padding (matches script/src/pdf_utils.rs).
     if let Some(pos) = find_subsequence(pdf_bytes, b"/Contents") {
-        // crude: take next ~ few hundred bytes and look for hex or literal string end
-        let slice = &pdf_bytes[pos..(pos + 400).min(pdf_bytes.len())];
-        // Try to find a hex string <....>
+        let slice = &pdf_bytes[pos..];
         if let Some(start) = slice.iter().position(|&b| b == b'<') {
             if let Some(end_rel) = slice[start..].iter().position(|&b| b == b'>') {
                 let inner = &slice[start + 1..start + end_rel];
-                // hex decode attempt (very basic)
                 if inner.len() % 2 == 0 && inner.len() > 10 {
                     let mut out = Vec::with_capacity(inner.len() / 2);
                     for i in (0..inner.len()).step_by(2) {
@@ -64,7 +60,9 @@ fn extract_signature_bytes(pdf_bytes: &[u8]) -> Option<Vec<u8>> {
                         let lo = from_hex_digit(inner[i + 1])?;
                         out.push((hi << 4) | lo);
                     }
-                    if out.len() > 32 {
+                    let trimmed_len = out.iter().rposition(|&b| b != 0).map(|p| p + 1).unwrap_or(0);
+                    if trimmed_len > 32 {
+                        out.truncate(trimmed_len);
                         return Some(out);
                     }
                 }
