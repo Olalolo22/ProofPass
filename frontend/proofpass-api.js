@@ -81,8 +81,9 @@ async function getStellarSdk() {
 
 // Freighter API Loader
 async function getFreighterApi() {
-  if (typeof window !== 'undefined' && window.freighterApi) {
-    return window.freighterApi;
+  if (typeof window !== 'undefined') {
+    if (window.freighterApi) return window.freighterApi;
+    if (window.freighter && typeof window.freighter === 'object') return window.freighter;
   }
   try {
     const mod = await import('https://esm.sh/@stellar/freighter-api@6.0.1');
@@ -134,46 +135,62 @@ export const wallet = {
   async connect() {
     if (config.USE_MOCK) {
       await delay(config.mockTiming.connect);
-      return { address: 'G' + randHex(54).toUpperCase().slice(0, 55), network: config.network };
+      return { address: 'GBRXZQGGINSVW3LKSUFJWGQE534V5F47QONOXVSRI3RC3DIEF5I5DXYW', network: config.network };
     }
 
     const fa = await getFreighterApi();
     if (!fa) {
       throw new Error(
-        'Freighter wallet extension not found. Please install Freighter from https://freighter.app to sign on Stellar Testnet, or enable mock mode.'
+        'Freighter wallet extension not found in this browser. Please install Freighter from https://freighter.app, or click "Demo Mode" to test.'
       );
     }
 
-    const isConnected = typeof fa.isConnected === 'function' ? (await fa.isConnected()) : true;
-    const connected = typeof isConnected === 'object' ? isConnected.isConnected : isConnected;
-    if (!connected) {
-      throw new Error('Freighter extension is locked or not connected. Please unlock your Freighter wallet.');
-    }
+    let address = null;
+    let accessErr = null;
 
+    // 1. Request access directly (prompts the Freighter modal)
     if (typeof fa.requestAccess === 'function') {
-      const access = await fa.requestAccess();
-      if (access && access.error) {
-        throw new Error('Freighter access denied: ' + access.error);
+      try {
+        const access = await fa.requestAccess();
+        if (access && access.error) {
+          accessErr = access.error.message || access.error;
+        } else if (access) {
+          address = access.address || access.publicKey || (typeof access === 'string' ? access : null);
+        }
+      } catch (e) {
+        accessErr = e.message || String(e);
       }
     }
 
-    let address = null;
-    if (typeof fa.getAddress === 'function') {
-      const addrRes = await fa.getAddress();
-      address = typeof addrRes === 'string' ? addrRes : (addrRes && addrRes.address);
+    // 2. Fallback to getAddress if needed
+    if (!address && typeof fa.getAddress === 'function') {
+      try {
+        const addrRes = await fa.getAddress();
+        if (addrRes && !addrRes.error) {
+          address = typeof addrRes === 'string' ? addrRes : (addrRes.address || addrRes.publicKey);
+        }
+      } catch (e) {}
     }
+
     if (!address) {
-      throw new Error('Could not retrieve account address from Freighter.');
+      if (accessErr) throw new Error('Freighter: ' + accessErr);
+      throw new Error(
+        'Freighter wallet not connected. Please unlock your Freighter extension and approve access, or click "Demo Mode" to test.'
+      );
     }
 
     let network = config.network;
     if (typeof fa.getNetworkDetails === 'function') {
-      const netRes = await fa.getNetworkDetails();
-      if (netRes && netRes.network) network = netRes.network;
+      try {
+        const netRes = await fa.getNetworkDetails();
+        if (netRes && netRes.network) network = netRes.network;
+      } catch (e) {}
     } else if (typeof fa.getNetwork === 'function') {
-      const netRes = await fa.getNetwork();
-      if (typeof netRes === 'string') network = netRes;
-      else if (netRes && netRes.network) network = netRes.network;
+      try {
+        const netRes = await fa.getNetwork();
+        if (typeof netRes === 'string') network = netRes;
+        else if (netRes && netRes.network) network = netRes.network;
+      } catch (e) {}
     }
 
     return { address, network };

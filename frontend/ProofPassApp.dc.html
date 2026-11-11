@@ -6,6 +6,10 @@
 <script src="./support.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@stellar/stellar-sdk/dist/stellar-sdk.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@stellar/freighter-api/build/index.min.js"></script>
+<script type="module">
+  import * as api from './proofpass-api.js';
+  window.proofpassApi = api;
+</script>
 </head>
 <body>
 <x-dc>
@@ -61,7 +65,10 @@
             <div style="font-family:'Newsreader',Georgia,serif;font-size:1.35rem;line-height:1.15;margin-bottom:4px;">Connect Freighter</div>
             <p style="margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#6E6A5A;">Your Stellar wallet signs the verification transaction.</p>
             <sc-if value="{{ notConnected }}" hint-placeholder-val="{{ true }}">
-              <button onClick="{{ connect }}" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#F8F4EC;background:#16140F;border:1px solid #16140F;padding:12px 20px;border-radius:999px;cursor:pointer;transition:all .2s;" style-hover="background:#C24E2C;border-color:#C24E2C;">Connect Freighter</button>
+              <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
+                <button onClick="{{ connect }}" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#F8F4EC;background:#16140F;border:1px solid #16140F;padding:12px 20px;border-radius:999px;cursor:pointer;transition:all .2s;" style-hover="background:#C24E2C;border-color:#C24E2C;">Connect Freighter</button>
+                <button onClick="{{ enableMock }}" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;color:#8A8474;background:transparent;border:1px dashed #C6C0B0;padding:11px 16px;border-radius:999px;cursor:pointer;" style-hover="border-color:#C24E2C;color:#C24E2C;">Demo Mode</button>
+              </div>
             </sc-if>
             <sc-if value="{{ wallet }}" hint-placeholder-val="{{ false }}">
               <div style="display:inline-flex;align-items:center;gap:10px;background:#EEF3EF;border:1px solid #CBE0D1;border-radius:999px;padding:9px 15px;">
@@ -198,15 +205,33 @@ class Component extends DCLogic {
   setErrText = (el) => { this.errText = el; };
 
   // All wallet / proof / contract calls go through the adapter in
-  // proofpass-api.js. Swapping mock for real never touches this file.
+  // proofpass-api.js.
   connect = async () => {
-    if (!this.api || this.state.busy) return;
+    const api = this.api || window.proofpassApi;
+    if (!api) {
+      this.setState({ errorMsg: 'Adapter still loading... please try again.' });
+      return;
+    }
+    if (this.state.busy) return;
     this.setState({ busy: true, errorMsg: null });
     try {
-      const { address } = await this.api.wallet.connect();
-      this.setState({ wallet: address, busy: false });
+      const { address } = await api.wallet.connect();
+      this.setState({ wallet: address, busy: false, errorMsg: null });
     } catch (e) {
+      console.warn('Wallet connect error:', e);
       this.setState({ busy: false, errorMsg: this._msg(e) });
+    }
+  };
+
+  enableMock = async () => {
+    const api = this.api || window.proofpassApi;
+    if (api && api.config) api.config.USE_MOCK = true;
+    this.setState({ busy: true, errorMsg: null });
+    try {
+      const res = api ? await api.wallet.connect() : { address: 'GBRXZQGGINSVW3LKSUFJWGQE534V5F47QONOXVSRI3RC3DIEF5I5DXYW' };
+      this.setState({ wallet: res.address, busy: false, errorMsg: null });
+    } catch (e) {
+      this.setState({ wallet: 'GBRXZQGGINSVW3LKSUFJWGQE534V5F47QONOXVSRI3RC3DIEF5I5DXYW', busy: false, errorMsg: null });
     }
   };
 
@@ -294,7 +319,7 @@ class Component extends DCLogic {
       setAfterCard: this.setAfterCard, setAfterVal: this.setAfterVal,
       setTxRow: this.setTxRow, setTxHash: this.setTxHashEl, setTxLink: this.setTxLink, setResetRow: this.setResetRow,
       setErrBox: this.setErrBox, setErrText: this.setErrText,
-      connect: this.connect, onFile: this.onFile, onDragOver: this.onDragOver, onDragLeave: this.onDragLeave, onDrop: this.onDrop,
+      connect: this.connect, enableMock: this.enableMock, onFile: this.onFile, onDragOver: this.onDragOver, onDragLeave: this.onDragLeave, onDrop: this.onDrop,
       loadSample: this.loadSample, clearProof: this.clearProof, submit: this.submit, reset: this.reset,
     };
   }
@@ -303,9 +328,17 @@ class Component extends DCLogic {
     this._orb = 'idle';
     this._syncUI();
     this._initThree();
+    if (window.proofpassApi) {
+      this.api = window.proofpassApi;
+    }
     import('./proofpass-api.js')
-      .then((m) => { this.api = m; })
-      .catch((e) => { console.warn('adapter load failed', e); this.setState({ errorMsg: 'Adapter failed to load' }); });
+      .then((m) => { this.api = m; window.proofpassApi = m; })
+      .catch((e) => {
+        console.warn('adapter load failed', e);
+        if (!this.api && !window.proofpassApi) {
+          this.setState({ errorMsg: 'Adapter load warning: ' + (e?.message || e) });
+        }
+      });
   }
 
   componentDidUpdate() { this._syncUI(); }
