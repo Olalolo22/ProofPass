@@ -8,8 +8,20 @@ ProofPass proves something different: that a real, cryptographically signed docu
 
 **Built for Stellar Hacks: Real-World ZK (June 2026).**
 
- [Read the whitepaper](https://github.com/Olalolo22/ProofPass/raw/main/ProofPass%20White%20Paper.pdf
+- [Read the whitepaper](https://github.com/Olalolo22/ProofPass/raw/main/ProofPass%20White%20Paper.pdf)
 · 🎥 [Watch the demo](https://youtu.be/S-8OnzhOo9Q)
+
+---
+
+## Live Deployments & On-Chain Verification
+
+| Contract / Asset | Stellar Testnet Identifier | Details |
+|---|---|---|
+| **`ZkInvestorGate`** | [`CB5MZKQG4KKAJS4HZTJNJE3FNAPHCVUR3QSN6QZMTPMMRRIKRW3FCYP7`](https://stellar.expert/explorer/testnet/contract/CB5MZKQG4KKAJS4HZTJNJE3FNAPHCVUR3QSN6QZMTPMMRRIKRW3FCYP7) | SP1 Groth16 BN254 verifier + credential vault |
+| **RWA Asset (USDC SAC)** | [`CDD4G3P6IXHJ7WZUZLF6KDULQZ5HDTZR2QG56V7LDP6YDMPT3I3MZ7SF`](https://stellar.expert/explorer/testnet/contract/CDD4G3P6IXHJ7WZUZLF6KDULQZ5HDTZR2QG56V7LDP6YDMPT3I3MZ7SF) | Administered by `ZkInvestorGate` for auto trustline authorization |
+| **Live Proof Verification Tx** | [`c512e0a7c462a832...da87b19`](https://stellar.expert/explorer/testnet/tx/c512e0a7c462a832b81998117e262894d08aaf890a468f44a94646666da87b19) | Real SP1 Groth16 proof verified on Protocol 26 host pairing check |
+| **Gate Initialization Tx** | [`d0ea7f11273400cd...e3c9ea3c4`](https://stellar.expert/explorer/testnet/tx/d0ea7f11273400cde8c7216f029bc0d6f0ce5e02df2a6ec509e6f86e3c9ea3c4) | Groth16 VK points + SP1 program vkey initialized |
+
 
 ---
 

@@ -25,3 +25,12 @@ IMPLEMENTATION_STATUS.md
 proof_artifacts.tar.gz
 jay_artifacts/
 
+# Node
+node_modules/
+package-lock.json
+
+# Local invoke scripts & inputs
+soroban-zk-investor-gate/invoke_*.json
+soroban-zk-investor-gate/vk_init.json
+
+
