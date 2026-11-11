@@ -9,8 +9,13 @@ use soroban_sdk::{
 /// Storage keys
 const VERIFICATION_KEY: &str = "VK";
 const PROGRAM_VKEY_HASH: &str = "PVK";
-const NULLIFIER_PREFIX: &str = "N_";
-const CREDENTIAL_PREFIX: &str = "C_";
+
+/// SP1 v6 circuit vk_root constant
+const SP1_V6_VK_ROOT: [u8; 32] = [
+    0x00, 0x2f, 0x85, 0x0e, 0xe9, 0x98, 0x97, 0x4d, 0x6c, 0xc0, 0x0e, 0x50, 0xcd, 0x08,
+    0x14, 0xb0, 0x98, 0xc0, 0x5b, 0xfa, 0xde, 0x46, 0x6d, 0x28, 0x57, 0x32, 0x40, 0xd0,
+    0x57, 0xf2, 0x53, 0x52,
+];
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -169,7 +174,7 @@ impl ZkInvestorGate {
         }
     }
 
-    /// Core SP1 Groth16 BN254 verification (adapted from soroban-examples/groth16_verifier + Nethermind RISC0 Groth16 + sp1-solana public input rules).
+    /// Core SP1 Groth16 BN254 verification (supports both SP1 v5 2-signal and v6 5-signal layouts).
     fn verify_sp1_groth16(
         env: &Env,
         proof: &Groth16Proof,
@@ -179,12 +184,9 @@ impl ZkInvestorGate {
     ) -> bool {
         let bn = env.crypto().bn254();
 
-        // Build the two public signals SP1 Groth16 expects:
-        // signal0: program vkey (skip first byte, 31 bytes -> 32B padded as in sp1-solana)
-        // signal1: sha256( the committed public inputs bytes ) with top 3 bits cleared (0x1F mask)
-        let sp1_public_inputs = Self::build_sp1_public_inputs(env, inputs, program_vkey);
+        // Build the public signals matching SP1 Groth16 IC layout:
+        let sp1_public_inputs = Self::build_sp1_public_inputs(env, inputs, program_vkey, vk.ic.len());
 
-        // For SP1 the groth16 has (typically) 2 public inputs => IC should have 3 entries.
         if sp1_public_inputs.len() + 1 != vk.ic.len() as u32 {
             return false;
         }
@@ -205,35 +207,36 @@ impl ZkInvestorGate {
         bn.pairing_check(g1_points, g2_points)
     }
 
-    /// Reconstruct the exact 2 public signals that SP1's Groth16 wrapper uses for this proof.
-    /// Matches sp1-solana::groth16_public_values + hash_public_inputs logic.
+    /// Reconstruct the public signals that SP1 Groth16 uses.
+    /// Handles both SP1 v5 (2 signals: vkey, digest) and SP1 v6 (5 signals: vkey, digest, exit_code, vk_root, nonce).
     fn build_sp1_public_inputs(
         env: &Env,
         inputs: &PublicInputs,
         program_vkey: &BytesN<32>,
+        ic_len: u32,
     ) -> Vec<Fr> {
-        // Serialize the committed values in the order the SP1 program io::commit'ed them.
-        // (wallet 32B | nullifier 32B | timestamp u64 as 8B big-endian)
+        // Serialize committed values in bincode order (wallet 32B | nullifier 32B | timestamp u64 LE)
         let mut committed = [0u8; 32 + 32 + 8];
         committed[0..32].copy_from_slice(&inputs.investor_wallet.to_array());
         committed[32..64].copy_from_slice(&inputs.nullifier.to_array());
-        committed[64..72].copy_from_slice(&inputs.timestamp.to_be_bytes());
+        committed[64..72].copy_from_slice(&inputs.timestamp.to_le_bytes());
 
-        // committed_values_digest = sha256(committed) ; clear top 3 bits of first byte
-        // Use Soroban host sha256. Convert to [u8;32] via .to_array() or into.
+        // committed_values_digest = sha256(committed) & ((1 << 253) - 1)
         let sha: BytesN<32> = env.crypto().sha256(&Bytes::from_slice(env, &committed)).into();
         let mut digest = sha.to_array();
         digest[0] &= 0x1F;
 
-        // signal 0: program_vkey with first byte skipped (31 bytes) + leading zero pad to 32
-        let mut vkey_signal = [0u8; 32];
-        let vkey_arr = program_vkey.to_array();
-        vkey_signal[1..32].copy_from_slice(&vkey_arr[1..32]); // skip [0] like sp1-solana
-
-        // Convert to Fr (BN254 scalars). Fr::from_bytes takes BytesN<32>
         let mut signals = Vec::new(env);
-        signals.push_back(Fr::from_bytes(BytesN::from_array(env, &vkey_signal)));
+        signals.push_back(Fr::from_bytes(program_vkey.clone()));
         signals.push_back(Fr::from_bytes(BytesN::from_array(env, &digest)));
+
+        if ic_len == 6 {
+            // SP1 v6 circuit layout: [program_vkey, digest, exit_code, vk_root, nonce]
+            signals.push_back(Fr::from_bytes(BytesN::from_array(env, &[0u8; 32]))); // exit_code = 0
+            signals.push_back(Fr::from_bytes(BytesN::from_array(env, &SP1_V6_VK_ROOT))); // vk_root
+            signals.push_back(Fr::from_bytes(BytesN::from_array(env, &[0u8; 32]))); // nonce = 0
+        }
+
         signals
     }
 

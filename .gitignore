@@ -20,3 +20,8 @@ program/elf/
 # Implementation Docs
 IMPLEMENTATION_PLAN.md
 IMPLEMENTATION_STATUS.md
+
+# Prover artifacts & tarballs
+proof_artifacts.tar.gz
+jay_artifacts/
+
