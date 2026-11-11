@@ -23,6 +23,28 @@
   @keyframes ppfade{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
   @keyframes ppblink{0%,49%{opacity:1;}50%,100%{opacity:0;}}
   @keyframes ppspin{to{transform:rotate(360deg);}}
+
+  @media (max-width: 768px) {
+    nav > div { padding: 12px 16px !important; gap: 12px !important; }
+    main { padding: 24px 16px 48px !important; }
+    .pp-grid { grid-template-columns: 1fr !important; gap: 20px !important; }
+    .pp-panel { padding: 12px 16px 24px !important; }
+    .pp-step { grid-template-columns: 28px 1fr !important; gap: 12px !important; padding: 18px 0 !important; }
+    .pp-verifier-panel { position: static !important; }
+    .pp-verifier-body { padding: 20px 16px !important; }
+  }
+
+  @media (max-width: 480px) {
+    nav > div { padding: 10px 12px !important; }
+    .pp-badge-text { display: none !important; }
+    .pp-back-text { display: none !important; }
+    .pp-back-link { font-size: 10px !important; }
+    .pp-connect-btns { width: 100% !important; flex-direction: column !important; align-items: stretch !important; }
+    .pp-connect-btns button { width: 100% !important; justify-content: center !important; text-align: center !important; }
+    .pp-submit-btn { width: 100% !important; justify-content: center !important; }
+    .pp-signals-row { flex-direction: column !important; align-items: flex-start !important; gap: 4px !important; }
+    .pp-signals-row span:last-child { text-align: left !important; }
+  }
 </style>
 </helmet>
 <div style="min-height:100vh;background:#F3F1EA;color:#16140F;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;">
@@ -37,11 +59,11 @@
         <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:16px;letter-spacing:-0.01em;">proofpass</span>
         <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9A937F;letter-spacing:0.08em;">/app</span>
       </a>
-      <div style="display:flex;align-items:center;gap:18px;">
+      <div style="display:flex;align-items:center;gap:14px;">
         <span style="display:inline-flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.06em;color:#514D42;border:1px solid #D6D0C0;padding:7px 13px;border-radius:999px;">
-          <span style="width:7px;height:7px;border-radius:50%;background:#3E8E5A;box-shadow:0 0 0 3px rgba(62,142,90,0.16);"></span>Stellar Testnet
+          <span style="width:7px;height:7px;border-radius:50%;background:#3E8E5A;box-shadow:0 0 0 3px rgba(62,142,90,0.16);"></span><span class="pp-badge-text">Stellar </span>Testnet
         </span>
-        <a href="ProofPass.dc.html" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#16140F;text-decoration:none;">&#8592; Back to site</a>
+        <a href="ProofPass.dc.html" class="pp-back-link" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#16140F;text-decoration:none;">&#8592; Back<span class="pp-back-text"> to site</span></a>
       </div>
     </div>
   </nav>
@@ -53,21 +75,24 @@
       <p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#575346;max-width:560px;">Connect a wallet, load your zero-knowledge proof, and submit it to the Soroban verifier. Your document never leaves this browser.</p>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:24px;align-items:start;">
+    <div class="pp-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%, 340px),1fr));gap:24px;align-items:start;">
 
       <!-- LEFT: CONSOLE -->
-      <section style="background:#F8F5EE;border:1px solid #DFD9C9;border-radius:6px;padding:8px 34px 34px;animation:ppfade .7s ease .05s both;">
+      <section class="pp-panel" style="background:#F8F5EE;border:1px solid #DFD9C9;border-radius:6px;padding:8px 34px 34px;animation:ppfade .7s ease .05s both;">
 
         <!-- STEP 1 -->
-        <div style="display:grid;grid-template-columns:38px 1fr;gap:18px;padding:30px 0 26px;border-bottom:1px solid #E7E1D2;">
+        <div class="pp-step" style="display:grid;grid-template-columns:38px 1fr;gap:18px;padding:30px 0 26px;border-bottom:1px solid #E7E1D2;">
           <div ref="{{ setStep1 }}" style="width:30px;height:30px;border-radius:50%;border:1.5px solid #C6C0B0;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A8474;transition:all .3s;">1</div>
           <div>
             <div style="font-family:'Newsreader',Georgia,serif;font-size:1.35rem;line-height:1.15;margin-bottom:4px;">Connect Freighter</div>
             <p style="margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#6E6A5A;">Your Stellar wallet signs the verification transaction.</p>
             <sc-if value="{{ notConnected }}" hint-placeholder-val="{{ true }}">
-              <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
+              <div class="pp-connect-btns" style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
                 <button onClick="{{ connect }}" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#F8F4EC;background:#16140F;border:1px solid #16140F;padding:12px 20px;border-radius:999px;cursor:pointer;transition:all .2s;" style-hover="background:#C24E2C;border-color:#C24E2C;">Connect Freighter</button>
                 <button onClick="{{ enableMock }}" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;color:#8A8474;background:transparent;border:1px dashed #C6C0B0;padding:11px 16px;border-radius:999px;cursor:pointer;" style-hover="border-color:#C24E2C;color:#C24E2C;">Demo Mode</button>
+              </div>
+              <div style="margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8A8474;line-height:1.45;">
+                <span style="color:#C24E2C;">&#9679;</span> On mobile or without Freighter? Tap <strong>Demo Mode</strong> to test immediately.
               </div>
             </sc-if>
             <sc-if value="{{ wallet }}" hint-placeholder-val="{{ false }}">
@@ -80,7 +105,7 @@
         </div>
 
         <!-- STEP 2 -->
-        <div style="display:grid;grid-template-columns:38px 1fr;gap:18px;padding:26px 0;border-bottom:1px solid #E7E1D2;">
+        <div class="pp-step" style="display:grid;grid-template-columns:38px 1fr;gap:18px;padding:26px 0;border-bottom:1px solid #E7E1D2;">
           <div ref="{{ setStep2 }}" style="width:30px;height:30px;border-radius:50%;border:1.5px solid #C6C0B0;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A8474;transition:all .3s;">2</div>
           <div>
             <div style="font-family:'Newsreader',Georgia,serif;font-size:1.35rem;line-height:1.15;margin-bottom:4px;">Upload proof.json</div>
@@ -103,7 +128,7 @@
                 </div>
                 <div style="padding:6px 14px 10px;">
                   <sc-for list="{{ signals }}" as="sig" hint-placeholder-count="4">
-                    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid #F0ECE0;">
+                    <div class="pp-signals-row" style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid #F0ECE0;">
                       <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.04em;color:#9A937F;text-transform:uppercase;">{{ sig.k }}</span>
                       <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3B382E;text-align:right;word-break:break-all;">{{ sig.v }}</span>
                     </div>
@@ -115,12 +140,12 @@
         </div>
 
         <!-- STEP 3 -->
-        <div style="display:grid;grid-template-columns:38px 1fr;gap:18px;padding:26px 0 6px;">
+        <div class="pp-step" style="display:grid;grid-template-columns:38px 1fr;gap:18px;padding:26px 0 6px;">
           <div ref="{{ setStep3 }}" style="width:30px;height:30px;border-radius:50%;border:1.5px solid #C6C0B0;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A8474;transition:all .3s;">3</div>
           <div>
             <div style="font-family:'Newsreader',Georgia,serif;font-size:1.35rem;line-height:1.15;margin-bottom:4px;">Submit to Soroban</div>
             <p style="margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#6E6A5A;">The contract verifies the BN254 pairing on-chain and authorizes your trustline.</p>
-            <button onClick="{{ submit }}" disabled="{{ submitDisabled }}" ref="{{ setSubmitBtn }}" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;padding:13px 22px;border-radius:999px;cursor:pointer;transition:all .2s;border:1px solid #C24E2C;background:#C24E2C;color:#F8F4EC;display:inline-flex;align-items:center;gap:10px;" style-hover="background:#16140F;border-color:#16140F;">
+            <button class="pp-submit-btn" onClick="{{ submit }}" disabled="{{ submitDisabled }}" ref="{{ setSubmitBtn }}" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;padding:13px 22px;border-radius:999px;cursor:pointer;transition:all .2s;border:1px solid #C24E2C;background:#C24E2C;color:#F8F4EC;display:inline-flex;align-items:center;gap:10px;" style-hover="background:#16140F;border-color:#16140F;">
               <span>{{ submitLabel }}</span>
               <sc-if value="{{ busy }}" hint-placeholder-val="{{ false }}"><span style="width:12px;height:12px;border:2px solid rgba(248,244,236,0.4);border-top-color:#F8F4EC;border-radius:50%;display:inline-block;animation:ppspin .7s linear infinite;"></span></sc-if>
             </button>
@@ -129,12 +154,12 @@
       </section>
 
       <!-- RIGHT: VERIFICATION -->
-      <section style="background:#16140F;border:1px solid #16140F;border-radius:6px;overflow:hidden;color:#F3F1EA;animation:ppfade .7s ease .12s both;position:sticky;top:92px;">
+      <section class="pp-verifier-panel" style="background:#16140F;border:1px solid #16140F;border-radius:6px;overflow:hidden;color:#F3F1EA;animation:ppfade .7s ease .12s both;position:sticky;top:92px;">
         <div style="position:relative;height:300px;">
           <div ref="{{ setHost }}" style="position:absolute;inset:0;"></div>
           <div style="position:absolute;left:0;right:0;bottom:18px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.28em;color:#6E6A5A;text-transform:uppercase;">Verifier</div>
         </div>
-        <div style="padding:26px 30px 30px;border-top:1px solid #2A271F;">
+        <div class="pp-verifier-body" style="padding:26px 30px 30px;border-top:1px solid #2A271F;">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:22px;">
             <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;color:#8A8474;text-transform:uppercase;">Status</div>
             <div ref="{{ setStatusPill }}" style="display:inline-flex;align-items:center;gap:9px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;letter-spacing:0.06em;padding:7px 14px;border-radius:999px;border:1px solid #504B3E;color:#B8B2A0;transition:all .3s;">

@@ -17,26 +17,64 @@
   ::selection{background:#C24E2C;color:#F3F1EA;}
   @keyframes ppfade{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
   @keyframes ppblink{0%,49%{opacity:1;}50%,100%{opacity:0;}}
+
+  /* Mobile & Tablet Responsive Media Queries */
+  @media (max-width: 900px) {
+    .pp-nav-inner { padding: 14px 20px !important; }
+    .pp-nav-links { display: none !important; }
+    .pp-section, .pp-section-inner { padding: 80px 20px !important; }
+    .pp-hero { padding: 110px 20px 48px !important; min-height: 85vh !important; }
+    .pp-stats-grid { grid-template-columns: repeat(2, 1fr) !important; padding: 48px 20px !important; gap: 24px !important; }
+    .pp-problem-grid { grid-template-columns: 1fr !important; gap: 36px !important; }
+    .pp-sticky-col { position: static !important; }
+    .pp-diff-grid { grid-template-columns: 1fr !important; gap: 20px !important; }
+    .pp-diff-card { padding: 28px 22px !important; }
+    .pp-step-row { grid-template-columns: 1fr !important; gap: 10px !important; padding: 24px 0 !important; }
+    .pp-why-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .pp-why-card { padding: 28px 22px !important; min-height: auto !important; }
+    .pp-trust-grid { grid-template-columns: 1fr !important; margin-top: 48px !important; }
+    .pp-trust-card { padding: 28px 22px !important; }
+    .pp-vision-layout { grid-template-columns: 1fr !important; gap: 36px !important; }
+    .pp-vision-grid { grid-template-columns: 1fr 1fr !important; }
+    .pp-stack-layout { grid-template-columns: 1fr !important; gap: 36px !important; }
+    .pp-stack-row { grid-template-columns: 28px 1fr !important; gap: 12px !important; padding: 20px 0 !important; }
+    .pp-cta-inner { padding: 90px 20px !important; }
+    .pp-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 32px !important; padding: 48px 20px 32px !important; }
+    .pp-footer-bottom { padding: 20px 20px 36px !important; flex-direction: column !important; gap: 10px !important; }
+  }
+
+  @media (max-width: 560px) {
+    .pp-nav-actions a:first-child { display: none !important; } /* hide Github text link on phones, preserve Launch App */
+    .pp-hero { padding: 96px 18px 40px !important; min-height: 80vh !important; }
+    .pp-hero-bottom { padding-top: 32px !important; gap: 24px !important; }
+    .pp-stats-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
+    .pp-why-grid { grid-template-columns: 1fr !important; }
+    .pp-vision-grid { grid-template-columns: 1fr !important; }
+    .pp-stack-row { grid-template-columns: 1fr !important; gap: 6px !important; }
+    .pp-footer-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
+    .pp-hero-btns { width: 100% !important; flex-direction: column !important; }
+    .pp-hero-btns a { width: 100% !important; justify-content: center !important; }
+  }
 </style>
 </helmet>
 <div style="background:#F3F1EA;color:#16140F;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;position:relative;">
 
   <!-- NAV -->
   <nav style="position:fixed;top:0;left:0;right:0;z-index:50;backdrop-filter:blur(10px);background:rgba(243,241,234,0.72);border-bottom:1px solid #E1DCCE;">
-    <div style="max-width:1300px;margin:0 auto;padding:16px 40px;display:flex;align-items:center;justify-content:space-between;gap:24px;">
+    <div class="pp-nav-inner" style="max-width:1300px;margin:0 auto;padding:16px 40px;display:flex;align-items:center;justify-content:space-between;gap:24px;">
       <a href="#top" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#16140F;">
         <span style="width:22px;height:22px;border:1.5px solid #16140F;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;position:relative;">
           <span style="width:7px;height:7px;background:#C24E2C;border-radius:50%;"></span>
         </span>
         <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:16px;letter-spacing:-0.01em;">proofpass</span>
       </a>
-      <div style="display:flex;align-items:center;gap:30px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.04em;">
+      <div class="pp-nav-links" style="display:flex;align-items:center;gap:30px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.04em;">
         <a href="#problem" style="color:#514D42;text-decoration:none;" style-hover="color:#16140F;">Problem</a>
         <a href="#how" style="color:#514D42;text-decoration:none;" style-hover="color:#16140F;">How it works</a>
         <a href="#why" style="color:#514D42;text-decoration:none;" style-hover="color:#16140F;">Why ProofPass</a>
         <a href="#stack" style="color:#514D42;text-decoration:none;" style-hover="color:#16140F;">Tech stack</a>
       </div>
-      <div style="display:flex;align-items:center;gap:14px;">
+      <div class="pp-nav-actions" style="display:flex;align-items:center;gap:14px;">
         <a href="https://github.com" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#16140F;text-decoration:none;padding:9px 4px;">GitHub</a>
         <a href="ProofPassApp.dc.html" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#F8F4EC;background:#C24E2C;text-decoration:none;padding:10px 18px;border-radius:999px;border:1px solid #C24E2C;white-space:nowrap;" style-hover="background:#16140F;border-color:#16140F;">Launch App</a>
       </div>
@@ -44,7 +82,7 @@
   </nav>
 
   <!-- HERO -->
-  <header id="top" style="position:relative;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:120px 40px 60px;">
+  <header id="top" class="pp-hero" style="position:relative;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:120px 40px 60px;">
     <div ref="{{ setHost }}" style="position:absolute;inset:0;z-index:0;"></div>
     <div style="position:relative;z-index:2;max-width:1300px;margin:0 auto;width:100%;pointer-events:none;">
       <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#C24E2C;margin-bottom:28px;animation:ppfade .8s ease both;">Zero-knowledge compliance for real-world assets on Stellar</div>
@@ -53,9 +91,9 @@
         <span style="display:block;text-align:right;font-style:italic;animation:ppfade .9s ease .12s both;">Reveal nothing.</span>
       </h1>
     </div>
-    <div style="position:relative;z-index:2;max-width:1300px;margin:0 auto;width:100%;margin-top:auto;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:40px;padding-top:56px;">
+    <div class="pp-hero-bottom" style="position:relative;z-index:2;max-width:1300px;margin:0 auto;width:100%;margin-top:auto;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:40px;padding-top:56px;">
       <p style="margin:0;max-width:460px;font-size:16px;line-height:1.6;color:#3B382E;animation:ppfade 1s ease .2s both;">ProofPass lets users prove eligibility for regulated financial products without revealing sensitive documents — using zero-knowledge proofs, verified on Stellar.</p>
-      <div style="display:flex;gap:14px;flex-wrap:wrap;animation:ppfade 1s ease .3s both;pointer-events:auto;">
+      <div class="pp-hero-btns" style="display:flex;gap:14px;flex-wrap:wrap;animation:ppfade 1s ease .3s both;pointer-events:auto;">
         <a href="ProofPassApp.dc.html" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:#F8F4EC;background:#16140F;text-decoration:none;padding:16px 26px;border-radius:999px;border:1px solid #16140F;display:inline-flex;align-items:center;gap:10px;white-space:nowrap;" style-hover="background:#C24E2C;border-color:#C24E2C;">Try Demo <span style="font-size:14px;">&#8594;</span></a>
         <a href="https://github.com" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:#16140F;background:transparent;text-decoration:none;padding:16px 26px;border-radius:999px;border:1px solid #C6C0B0;display:inline-flex;align-items:center;gap:10px;" style-hover="border-color:#16140F;">GitHub</a>
       </div>
@@ -67,7 +105,7 @@
 
   <!-- STATS BAND (dark) -->
   <section style="background:#16140F;color:#F3F1EA;">
-    <div style="max-width:1300px;margin:0 auto;padding:70px 40px;display:grid;grid-template-columns:repeat(4,1fr);gap:32px;">
+    <div class="pp-stats-grid" style="max-width:1300px;margin:0 auto;padding:70px 40px;display:grid;grid-template-columns:repeat(4,1fr);gap:32px;">
       <div data-reveal>
         <div style="font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:clamp(2.2rem,4vw,3.4rem);letter-spacing:-0.02em;color:#E8A07E;">$580M+</div>
         <div style="margin-top:10px;font-size:13px;line-height:1.5;color:#9A9484;">Tokenized RWA settling on the Stellar network</div>
@@ -88,9 +126,9 @@
   </section>
 
   <!-- PROBLEM -->
-  <section id="problem" style="max-width:1300px;margin:0 auto;padding:130px 40px;">
-    <div style="display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);gap:80px;align-items:start;">
-      <div style="position:sticky;top:110px;" data-reveal>
+  <section id="problem" class="pp-section" style="max-width:1300px;margin:0 auto;padding:130px 40px;">
+    <div class="pp-problem-grid" style="display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);gap:80px;align-items:start;">
+      <div class="pp-sticky-col" style="position:sticky;top:110px;" data-reveal>
         <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#C24E2C;text-transform:uppercase;margin-bottom:22px;">01 &mdash; The problem</div>
         <h2 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.4rem,4.4vw,4rem);line-height:1.02;letter-spacing:-0.02em;">Eligibility shouldn&#39;t cost you your privacy.</h2>
       </div>
@@ -105,19 +143,19 @@
   </section>
 
   <!-- WHY DIFFERENT -->
-  <section style="border-top:1px solid #E1DCCE;background:#EFEBE0;">
-    <div style="max-width:1300px;margin:0 auto;padding:130px 40px;">
+  <section class="pp-section" style="border-top:1px solid #E1DCCE;background:#EFEBE0;">
+    <div class="pp-section-inner" style="max-width:1300px;margin:0 auto;padding:130px 40px;">
       <div style="max-width:760px;margin-bottom:60px;" data-reveal>
         <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#C24E2C;text-transform:uppercase;margin-bottom:22px;">02 &mdash; Why it&#39;s different</div>
         <h2 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.4rem,4.4vw,4rem);line-height:1.02;letter-spacing:-0.02em;">Not a checkbox wrapped in cryptography.</h2>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
-        <div style="background:#F6F3EB;border:1px solid #DFD9C9;border-radius:4px;padding:40px;display:flex;flex-direction:column;gap:18px;" data-reveal>
+      <div class="pp-diff-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+        <div class="pp-diff-card" style="background:#F6F3EB;border:1px solid #DFD9C9;border-radius:4px;padding:40px;display:flex;flex-direction:column;gap:18px;" data-reveal>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9A937F;">Most ZK compliance</div>
           <h3 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:1.7rem;line-height:1.2;color:#6E6A5A;">Proves a user typed &ldquo;true&rdquo; into a form.</h3>
           <p style="margin:0;font-size:15px;line-height:1.6;color:#6E6A5A;">The circuit verifies a self-reported claim — inputs like <code style="font-family:'IBM Plex Mono',monospace;font-size:0.85em;">kycPassed</code> or <code style="font-family:'IBM Plex Mono',monospace;font-size:0.85em;">sanctionsClear</code> supplied directly by the user, with no external authority backing them.</p>
         </div>
-        <div style="background:#16140F;border:1px solid #16140F;border-radius:4px;padding:40px;display:flex;flex-direction:column;gap:18px;color:#F3F1EA;" data-reveal>
+        <div class="pp-diff-card" style="background:#16140F;border:1px solid #16140F;border-radius:4px;padding:40px;display:flex;flex-direction:column;gap:18px;color:#F3F1EA;" data-reveal>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#E8A07E;">ProofPass</div>
           <h3 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:1.7rem;line-height:1.2;">Proves a real, signed document contains the statutory language it claims.</h3>
           <p style="margin:0;font-size:15px;line-height:1.6;color:#B8B2A0;">Issued by a licensed professional and chained back to a publicly recognized certificate authority. We don&#39;t ask &ldquo;do you say you&#39;re compliant.&rdquo; We ask &ldquo;can you prove a trusted third party already verified this&rdquo; — and check the cryptographic math ourselves.</p>
@@ -127,13 +165,13 @@
   </section>
 
   <!-- HOW IT WORKS -->
-  <section id="how" style="max-width:1300px;margin:0 auto;padding:130px 40px;">
+  <section id="how" class="pp-section" style="max-width:1300px;margin:0 auto;padding:130px 40px;">
     <div style="max-width:760px;margin-bottom:70px;" data-reveal>
       <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#C24E2C;text-transform:uppercase;margin-bottom:22px;">03 &mdash; How it works</div>
       <h2 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.4rem,4.4vw,4rem);line-height:1.02;letter-spacing:-0.02em;">From signed PDF to on-chain authorization.</h2>
     </div>
     <sc-for list="{{ steps }}" as="step" hint-placeholder-count="3">
-      <div style="display:grid;grid-template-columns:80px 200px 1fr;gap:32px;align-items:start;padding:34px 0;border-top:1px solid #D6D0C0;" data-reveal>
+      <div class="pp-step-row" style="display:grid;grid-template-columns:80px 200px 1fr;gap:32px;align-items:start;padding:34px 0;border-top:1px solid #D6D0C0;" data-reveal>
         <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#C24E2C;letter-spacing:0.08em;">{{ step.num }}</div>
         <div style="font-family:'Newsreader',Georgia,serif;font-size:1.7rem;font-weight:400;line-height:1.1;letter-spacing:-0.01em;">{{ step.title }}</div>
         <div style="font-size:15.5px;line-height:1.62;color:#3B382E;max-width:640px;">{{ step.body }}</div>
@@ -146,29 +184,29 @@
   </section>
 
   <!-- WHY PROOFPASS -->
-  <section id="why" style="border-top:1px solid #E1DCCE;background:#EFEBE0;">
-    <div style="max-width:1300px;margin:0 auto;padding:130px 40px;">
+  <section id="why" class="pp-section" style="border-top:1px solid #E1DCCE;background:#EFEBE0;">
+    <div class="pp-section-inner" style="max-width:1300px;margin:0 auto;padding:130px 40px;">
       <div style="max-width:760px;margin-bottom:60px;" data-reveal>
         <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#C24E2C;text-transform:uppercase;margin-bottom:22px;">04 &mdash; Why ProofPass</div>
         <h2 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.4rem,4.4vw,4rem);line-height:1.02;letter-spacing:-0.02em;">Compliance that keeps the secret.</h2>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#D6D0C0;border:1px solid #D6D0C0;border-radius:4px;overflow:hidden;">
-        <div style="background:#F6F3EB;padding:38px 30px;display:flex;flex-direction:column;gap:16px;min-height:250px;" data-reveal>
+      <div class="pp-why-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#D6D0C0;border:1px solid #D6D0C0;border-radius:4px;overflow:hidden;">
+        <div class="pp-why-card" style="background:#F6F3EB;padding:38px 30px;display:flex;flex-direction:column;gap:16px;min-height:250px;" data-reveal>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#C24E2C;">&#8594; 01</div>
           <h3 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:1.5rem;line-height:1.14;letter-spacing:-0.01em;">No sensitive documents stored</h3>
           <p style="margin:auto 0 0;font-size:14px;line-height:1.6;color:#575346;">The document never leaves the user&#39;s device. There is no honeypot database to breach, subpoena, or leak.</p>
         </div>
-        <div style="background:#F6F3EB;padding:38px 30px;display:flex;flex-direction:column;gap:16px;min-height:250px;" data-reveal>
+        <div class="pp-why-card" style="background:#F6F3EB;padding:38px 30px;display:flex;flex-direction:column;gap:16px;min-height:250px;" data-reveal>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#C24E2C;">&#8594; 02</div>
           <h3 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:1.5rem;line-height:1.14;letter-spacing:-0.01em;">Privacy by default</h3>
           <p style="margin:auto 0 0;font-size:14px;line-height:1.6;color:#575346;">Zero-knowledge from the ground up. The chain learns only one bit: this wallet qualifies. Nothing about who, how much, or from where.</p>
         </div>
-        <div style="background:#F6F3EB;padding:38px 30px;display:flex;flex-direction:column;gap:16px;min-height:250px;" data-reveal>
+        <div class="pp-why-card" style="background:#F6F3EB;padding:38px 30px;display:flex;flex-direction:column;gap:16px;min-height:250px;" data-reveal>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#C24E2C;">&#8594; 03</div>
           <h3 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:1.5rem;line-height:1.14;letter-spacing:-0.01em;">Cryptographically verifiable</h3>
           <p style="margin:auto 0 0;font-size:14px;line-height:1.6;color:#575346;">Every authorization is backed by a Groth16 proof anyone can check on-chain &mdash; not a checkbox, not a trusted admin&#39;s word.</p>
         </div>
-        <div style="background:#F6F3EB;padding:38px 30px;display:flex;flex-direction:column;gap:16px;min-height:250px;" data-reveal>
+        <div class="pp-why-card" style="background:#F6F3EB;padding:38px 30px;display:flex;flex-direction:column;gap:16px;min-height:250px;" data-reveal>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#C24E2C;">&#8594; 04</div>
           <h3 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:1.5rem;line-height:1.14;letter-spacing:-0.01em;">Built for regulated tokenized assets</h3>
           <p style="margin:auto 0 0;font-size:14px;line-height:1.6;color:#575346;">Authorization flows natively into the Stellar Asset Contract&#39;s trustline model &mdash; the settlement rail RWAs already run on.</p>
@@ -178,17 +216,17 @@
   </section>
 
   <!-- TRUST MODEL -->
-  <section id="trust" style="background:#16140F;color:#F3F1EA;">
-    <div style="max-width:1300px;margin:0 auto;padding:130px 40px;">
+  <section id="trust" class="pp-section" style="background:#16140F;color:#F3F1EA;">
+    <div class="pp-section-inner" style="max-width:1300px;margin:0 auto;padding:130px 40px;">
       <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#E8A07E;text-transform:uppercase;margin-bottom:60px;" data-reveal>05 &mdash; Trust model</div>
       <div style="max-width:1000px;margin:0 auto;text-align:center;" data-reveal>
         <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;color:#8A8474;text-transform:uppercase;margin-bottom:30px;">The statutory anchor phrase</div>
         <blockquote style="margin:0;font-family:'Newsreader',Georgia,serif;font-style:italic;font-weight:300;font-size:clamp(2rem,5vw,4.4rem);line-height:1.12;letter-spacing:-0.015em;">&ldquo;&hellip;excluding the value of their primary&nbsp;residence.&rdquo;</blockquote>
         <p style="margin:36px auto 0;max-width:620px;font-size:16px;line-height:1.65;color:#B8B2A0;">SEC Rule 501(a) mandates this exact exclusion. Every legitimate CPA attestation letter must contain it — CPAs do not get creative with this language. That makes it a reliable, legally-mandated anchor for the proof circuit to target.</p>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#2A271F;border:1px solid #2A271F;border-radius:4px;margin-top:80px;overflow:hidden;">
+      <div class="pp-trust-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#2A271F;border:1px solid #2A271F;border-radius:4px;margin-top:80px;overflow:hidden;">
         <sc-for list="{{ trust }}" as="t" hint-placeholder-count="3">
-          <div style="background:#16140F;padding:36px 34px;display:flex;flex-direction:column;gap:14px;" data-reveal>
+          <div class="pp-trust-card" style="background:#16140F;padding:36px 34px;display:flex;flex-direction:column;gap:14px;" data-reveal>
             <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#E8A07E;">{{ t.tag }}</div>
             <div style="font-family:'Newsreader',Georgia,serif;font-size:1.35rem;line-height:1.2;">{{ t.title }}</div>
             <p style="margin:0;font-size:14px;line-height:1.6;color:#9A9484;">{{ t.body }}</p>
@@ -199,16 +237,16 @@
   </section>
 
   <!-- VISION -->
-  <section id="vision" style="max-width:1300px;margin:0 auto;padding:130px 40px;">
-    <div style="display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);gap:80px;align-items:start;">
-      <div style="position:sticky;top:110px;" data-reveal>
+  <section id="vision" class="pp-section" style="max-width:1300px;margin:0 auto;padding:130px 40px;">
+    <div class="pp-vision-layout" style="display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);gap:80px;align-items:start;">
+      <div class="pp-sticky-col" style="position:sticky;top:110px;" data-reveal>
         <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#C24E2C;text-transform:uppercase;margin-bottom:22px;">06 &mdash; Vision</div>
         <h2 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.4rem,4.4vw,4rem);line-height:1.02;letter-spacing:-0.02em;">One primitive. Every &ldquo;can you prove&nbsp;this.&rdquo;</h2>
         <p style="margin:26px 0 0;font-size:16px;line-height:1.65;color:#3B382E;max-width:400px;">The accredited-investor gate is ProofPass&#39;s first implementation, not its ceiling. Proving a signed document satisfies a policy — without revealing it — generalizes anywhere a system asks for proof.</p>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#D6D0C0;border:1px solid #D6D0C0;border-radius:4px;overflow:hidden;" data-reveal>
+      <div class="pp-vision-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#D6D0C0;border:1px solid #D6D0C0;border-radius:4px;overflow:hidden;" data-reveal>
         <sc-for list="{{ vision }}" as="v" hint-placeholder-count="6">
-          <div style="background:#F3F1EA;padding:34px 30px;min-height:150px;display:flex;flex-direction:column;justify-content:space-between;gap:20px;" style-hover="background:#EFEBE0;">
+          <div class="pp-vision-card" style="background:#F3F1EA;padding:34px 30px;min-height:150px;display:flex;flex-direction:column;justify-content:space-between;gap:20px;" style-hover="background:#EFEBE0;">
             <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#C24E2C;">{{ v.num }}</div>
             <div style="font-family:'Newsreader',Georgia,serif;font-size:1.45rem;line-height:1.15;letter-spacing:-0.01em;">{{ v.label }}</div>
           </div>
@@ -218,17 +256,17 @@
   </section>
 
   <!-- TECH STACK -->
-  <section id="stack" style="border-top:1px solid #E1DCCE;background:#EFEBE0;">
-    <div style="max-width:1300px;margin:0 auto;padding:130px 40px;">
-      <div style="display:grid;grid-template-columns:minmax(0,0.8fr) minmax(0,1.2fr);gap:80px;align-items:start;">
-        <div style="position:sticky;top:110px;" data-reveal>
+  <section id="stack" class="pp-section" style="border-top:1px solid #E1DCCE;background:#EFEBE0;">
+    <div class="pp-section-inner" style="max-width:1300px;margin:0 auto;padding:130px 40px;">
+      <div class="pp-stack-layout" style="display:grid;grid-template-columns:minmax(0,0.8fr) minmax(0,1.2fr);gap:80px;align-items:start;">
+        <div class="pp-sticky-col" style="position:sticky;top:110px;" data-reveal>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#C24E2C;text-transform:uppercase;margin-bottom:22px;">07 &mdash; Tech stack</div>
           <h2 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.4rem,4.4vw,4rem);line-height:1.02;letter-spacing:-0.02em;">Standard tools, wired for zero&#8209;knowledge.</h2>
           <p style="margin:26px 0 0;font-size:16px;line-height:1.65;color:#3B382E;max-width:380px;">Nothing exotic. A proving stack the ZK community already trusts, settling on the network RWAs already use.</p>
         </div>
         <div style="display:flex;flex-direction:column;" data-reveal>
           <sc-for list="{{ stack }}" as="s" hint-placeholder-count="5">
-            <div style="display:grid;grid-template-columns:34px 190px 1fr;gap:26px;align-items:baseline;padding:28px 0;border-top:1px solid #D6D0C0;">
+            <div class="pp-stack-row" style="display:grid;grid-template-columns:34px 190px 1fr;gap:26px;align-items:baseline;padding:28px 0;border-top:1px solid #D6D0C0;">
               <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#9A937F;">{{ s.idx }}</div>
               <div style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:1.15rem;letter-spacing:-0.01em;color:#16140F;">{{ s.name }}</div>
               <div style="font-size:14.5px;line-height:1.55;color:#575346;">{{ s.role }}</div>
@@ -242,7 +280,7 @@
 
   <!-- FINAL CTA (dark) -->
   <section id="cta" style="background:#16140F;color:#F3F1EA;">
-    <div style="max-width:1300px;margin:0 auto;padding:150px 40px;text-align:center;">
+    <div class="pp-cta-inner" style="max-width:1300px;margin:0 auto;padding:150px 40px;text-align:center;">
       <p style="margin:0 auto 40px;max-width:820px;font-family:'Newsreader',Georgia,serif;font-weight:300;font-style:italic;font-size:clamp(1.6rem,3.4vw,2.8rem);line-height:1.28;color:#D8D2C2;" data-reveal>The internet was built around sharing documents. Regulated finance should be built around sharing proofs.</p>
       <h2 style="margin:0 0 48px;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(3rem,8vw,7rem);line-height:0.96;letter-spacing:-0.02em;" data-reveal>Prove it.<span style="font-style:italic;"> Reveal nothing.</span></h2>
       <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;" data-reveal>
@@ -254,7 +292,7 @@
 
   <!-- FOOTER -->
   <footer style="background:#16140F;color:#F3F1EA;border-top:1px solid #2A271F;">
-    <div style="max-width:1300px;margin:0 auto;padding:70px 40px 44px;display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:40px;">
+    <div class="pp-footer-grid" style="max-width:1300px;margin:0 auto;padding:70px 40px 44px;display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:40px;">
       <div>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
           <span style="width:22px;height:22px;border:1.5px solid #F3F1EA;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;">
@@ -283,7 +321,7 @@
         <a href="#" style="font-size:14px;color:#C4BEAE;text-decoration:none;" style-hover="color:#F3F1EA;">Contact</a>
       </div>
     </div>
-    <div style="max-width:1300px;margin:0 auto;padding:22px 40px 40px;border-top:1px solid #2A271F;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.06em;color:#6E6A5A;">
+    <div class="pp-footer-bottom" style="max-width:1300px;margin:0 auto;padding:22px 40px 40px;border-top:1px solid #2A271F;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.06em;color:#6E6A5A;">
       <span>Stellar Hacks: Real-World ZK &middot; July 2026</span>
       <span>Built with SP1 zkVM &middot; Groth16 BN254 &middot; Soroban</span>
     </div>
