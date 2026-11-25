@@ -346,8 +346,8 @@ class Component extends DCLogic {
       setHost: this.setHost,
       steps: [
         { num: '01', title: 'Sign the attestation', body: 'The investor obtains a DocuSign-signed CPA attestation letter — the standard proof of accredited-investor status — carrying a PKCS#7 digital signature chained to a publicly trusted certificate authority. The document never leaves their hands.' },
-        { num: '02', title: 'Prove with SP1 zkVM', body: 'An SP1 zkVM program verifies the signature, confirms the document is under 90 days old, matches the SEC Rule 501(a) statutory phrase, and derives a replay nullifier — then compresses to a ~260-byte Groth16 proof over BN254. All computed locally; the document is never revealed.' },
-        { num: '03', title: 'Verify on Stellar & unlock', body: 'The proof and its public inputs are submitted to the ZkInvestorGate Soroban contract, which checks the BN254 pairing on-chain, records the nullifier, and calls the Stellar Asset Contract to flip the investor\u2019s trustline to authorized — opening the tokenized RWA pool.' },
+        { num: '02', title: 'Prove with SP1 zkVM', body: 'An SP1 zkVM program verifies the signature, reads the signing date, matches the full statutory sentence (a negated statement fails), and derives a replay-proof tag — then compresses to a ~260-byte Groth16 proof over BN254. All computed locally; the document is never revealed.' },
+        { num: '03', title: 'Verify on Stellar & unlock', body: 'The proof and its public inputs are submitted to the ZkInvestorGate Soroban contract, which checks the BN254 pairing on-chain, records the one-time tag, issues a Pass that expires one year after the document was signed, and unlocks the markets that Pass belongs to. One Pass can open several markets, a second Pass type (e.g. licensed pharmacist) opens a different one, and an admin can revoke any Pass at any time.' },
       ],
       trust: [
         { tag: 'Trust anchor', title: 'DigiCert Trusted Root G4', body: 'The same class of publicly-recognized root certificate a browser uses to validate HTTPS — the chain DocuSign\u2019s eSignature platform signs with. Self-signed, expires 2038.' },
@@ -357,7 +357,7 @@ class Component extends DCLogic {
       stack: [
         { idx: '01', name: 'Stellar', role: 'Fast, low-cost settlement layer where $580M+ of tokenized real-world assets already live.' },
         { idx: '02', name: 'Soroban', role: 'Stellar\u2019s smart-contract platform \u2014 hosts the ZkInvestorGate verifier and manages authorization state.' },
-        { idx: '03', name: 'SP1 zkVM', role: 'Succinct RISC-V zkVM runs the compliance program: signature check, recency, statutory phrase, nullifier.' },
+        { idx: '03', name: 'SP1 zkVM', role: 'Succinct RISC-V zkVM runs the compliance program: signature check, document date, statutory phrase, replay tag.' },
         { idx: '04', name: 'Groth16 / BN254', role: 'Compresses the proof to a constant ~260 bytes, verified on-chain via Protocol 26 native pairing.' },
         { idx: '05', name: 'Freighter', role: 'Stellar wallet the investor signs the verify_and_authorize transaction with.' },
       ],

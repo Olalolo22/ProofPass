@@ -13,33 +13,36 @@ unavailable (e.g., on mobile browsers).
 
 | File | What it is |
 |------|-----------|
-| `ProofPass.dc.html`    | Marketing landing page (hero, problem, how-it-works, why, trust model, vision, tech stack, footer) with a Three.js particle centerpiece and mobile-responsive layout. |
-| `ProofPassApp.dc.html` | The `/app` verification console: connect Freighter (or Demo Mode) → load bundled SP1 v6 sample proof or upload `proof.json` → submit to Soroban, with an animated verification orb, trustline before/after state, and Stellar Expert link. |
-| `proofpass-api.js`     | **Integration seam.** Connects Freighter (`requestAccess` + `getAddress` fallback), encodes `Groth16Proof` / `PublicInputs` ScVals, simulates/signs/submits `verify_and_authorize`, polls confirmation, and queries `is_authorized`. |
+| `ProofPass.dc.html`    | Marketing landing page. |
+| `ProofPassApp.dc.html` | The `/app` console: two Pass cards (Accredited Investor, Licensed Pharmacist), proof upload/verify with a replay-attack test, three gated markets, and an issuer/compliance drawer (revoke, reinstate, sync). |
+| `proofpass-api.js`     | **Integration seam.** Freighter + Soroban RPC for the gate and the three markets, friendly decoding of contract error codes, and a stateful Demo Mode that follows the same rules as the contracts. |
+| `test-demo.mjs`        | `node frontend/test-demo.mjs` runs the whole demo lifecycle (lockout, unlock, replay rejected, policy isolation, revoke, reinstate, expiry sweep). |
 | `support.js`           | Runtime for the `.dc.html` components. Do not edit. |
-| `vercel.json`          | Static rewrites mapping `/` → `/ProofPass.dc.html` and `/app` → `/ProofPassApp.dc.html`. |
+| `vercel.json`          | Static rewrites: `/` to the landing page, `/app` to the console. |
 
-Open `ProofPass.dc.html` via a local static server or Vercel deployment;
-"Launch App" / "Try Demo" routes to `ProofPassApp.dc.html` (`/app`).
+## The three markets
 
-## Live Testnet Configuration (`proofpass-api.js`)
+| Market | Needs | What it shows |
+|--------|-------|---------------|
+| 1. sTBILL Treasury Vault | Pass #1 | Permissioned tokenized T-bill shares; trustline authorized by the gate |
+| 2. Cross-Border Yield Vault | Pass #1 | Same Pass, second protocol. Principal can always be redeemed, even after expiry |
+| 3. Regulated Medical Supply Checkout | Pass #2 | Strict isolation: an investor Pass does not open it |
 
-- **Network:** Stellar Testnet (`https://soroban-testnet.stellar.org`, Protocol 26 BN254)
-- **`ZkInvestorGate`:** `CB5MZKQG4KKAJS4HZTJNJE3FNAPHCVUR3QSN6QZMTPMMRRIKRW3FCYP7`
-- **RWA Asset (USDC SAC):** `CDD4G3P6IXHJ7WZUZLF6KDULQZ5HDTZR2QG56V7LDP6YDMPT3I3MZ7SF`
-- **Mock toggle:** Set `config.USE_MOCK = true` in `proofpass-api.js` to run purely simulated timings offline.
+Every market asks the gate "does this wallet hold an active Pass?" live on each action.
 
-## How the Flow Maps to the Contract
+## Going live on Testnet
 
-The app mirrors the pipeline from `PROOF_GENERATION.md` and
-`soroban-zk-investor-gate/src/lib.rs`:
+The app runs in **Demo Mode** until the v2 contracts are deployed.
 
-1. **Offline (local prover):** Investor's DocuSign-signed CPA PDF → SP1 v6 zkVM
-   prover → `proof.json` (Groth16 BN254 `pi_a`/`pi_b`/`pi_c` + `public_inputs`).
-2. **In this app:** Connect Freighter → load sample proof or upload `proof.json`
-   → call `verify_and_authorize(proof, public_inputs, investor, rwa_asset_contract)`
-   → contract verifies the 5-signal BN254 pairing, stores the nullifier and
-   5-year credential, and calls `set_authorized` on the RWA SAC.
+1. `ADMIN=pp-admin TEST_WALLET=G... ./scripts/deploy-testnet.sh`
+2. Paste the printed IDs into `config` in `proofpass-api.js`.
+3. Generate a proof for your wallet (see `PROOF_GENERATION.md`) and upload it in the app.
+
+Bundled "demo proofs" only drive Demo Mode; real Testnet verification needs a proof generated for your own wallet.
+
+## Privacy wording
+
+No PDF or personal data leaves the device, and the contract stores only an expiry date and a revoked flag per Pass. The proof's public inputs (issuer fingerprint, replay tag, document date) are visible in the transaction itself. Hiding those is on the roadmap, so do not describe the system as "never public".
 
 ## Dependencies
 
