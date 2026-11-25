@@ -45,6 +45,14 @@
     .pp-signals-row { flex-direction: column !important; align-items: flex-start !important; gap: 4px !important; }
     .pp-signals-row span:last-child { text-align: left !important; }
   }
+
+  .pp-card{background:#F8F5EE;border:1px solid #DFD9C9;border-radius:6px;}
+  .pp-btn{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.05em;text-transform:uppercase;color:#F8F4EC;background:#16140F;border:1px solid #16140F;padding:9px 15px;border-radius:999px;cursor:pointer;transition:all .2s;}
+  .pp-btn:hover:not(:disabled){background:#C24E2C;border-color:#C24E2C;}
+  .pp-btn:disabled{opacity:.38;cursor:not-allowed;}
+  .pp-btn-ghost{background:transparent;color:#16140F;border-color:#C6C0B0;}
+  .pp-btn-ghost:hover:not(:disabled){background:transparent;color:#C24E2C;border-color:#C24E2C;}
+  .pp-input{font-family:'IBM Plex Mono',monospace;font-size:13px;padding:8px 10px;border:1px solid #D6D0C0;border-radius:6px;background:#FBF9F3;color:#16140F;width:110px;}
 </style>
 </helmet>
 <div style="min-height:100vh;background:#F3F1EA;color:#16140F;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;">
@@ -69,11 +77,49 @@
   </nav>
 
   <!-- BODY -->
+  <!-- BODY -->
   <main style="flex:1;width:100%;max-width:1220px;margin:0 auto;padding:44px 32px 64px;">
-    <div style="margin-bottom:34px;animation:ppfade .6s ease both;">
-      <h1 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.2rem,4.4vw,3.4rem);line-height:1.02;letter-spacing:-0.02em;">Verify accreditation</h1>
-      <p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#575346;max-width:560px;">Connect a wallet, load your zero-knowledge proof, and submit it to the Soroban verifier. Your document never leaves this browser.</p>
+    <div style="margin-bottom:30px;animation:ppfade .6s ease both;">
+      <h1 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(2.2rem,4.4vw,3.4rem);line-height:1.02;letter-spacing:-0.02em;">Your Passes</h1>
+      <p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#575346;max-width:640px;">One proof, one Pass. Each Pass unlocks only the markets it belongs to. Your document stays in this browser; the chain only keeps an expiry date and a revoked flag.</p>
     </div>
+
+    <!-- NOTICE -->
+    <sc-if value="{{ hasNotice }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:22px;padding:13px 16px;border-radius:6px;border:1px solid {{ noticeBorder }};background:{{ noticeBg }};animation:ppfade .3s ease both;">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:{{ noticeCol }};flex:none;">{{ noticeIcon }}</span>
+        <div style="flex:1;font-size:13.5px;line-height:1.5;color:#2B281F;">{{ noticeText }}
+          <sc-if value="{{ hasNoticeLink }}" hint-placeholder-val="{{ false }}"><a href="{{ noticeLink }}" target="_blank" rel="noopener" style="margin-left:8px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#C24E2C;text-decoration:underline;">view tx &#8599;</a></sc-if>
+        </div>
+        <a onClick="{{ dismissNotice }}" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8A8474;cursor:pointer;">dismiss</a>
+      </div>
+    </sc-if>
+
+    <!-- PASS STRIP -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%, 300px),1fr));gap:16px;margin-bottom:12px;">
+      <sc-for list="{{ passCards }}" as="pc" hint-placeholder-count="2">
+        <div class="pp-card" style="padding:18px 20px;display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#9A937F;text-transform:uppercase;">Pass #{{ pc.id }}</span>
+            <span style="display:inline-flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.04em;padding:5px 11px;border-radius:999px;background:{{ pc.badgeBg }};color:{{ pc.badgeCol }};border:1px solid {{ pc.badgeBorder }};"><span style="width:7px;height:7px;border-radius:50%;background:{{ pc.dot }};"></span>{{ pc.badge }}</span>
+          </div>
+          <div style="font-family:'Newsreader',Georgia,serif;font-size:1.4rem;line-height:1.1;">{{ pc.name }}</div>
+          <div style="font-size:12.5px;line-height:1.5;color:#6E6A5A;">{{ pc.detail }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ wallet }}" hint-placeholder-val="{{ false }}">
+      <div class="pp-card" style="padding:12px 18px;margin-bottom:34px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#514D42;">sTBILL trustline: <strong style="color:{{ trustCol }};">{{ trustText }}</strong> &middot; demo USDC: <strong>{{ usdcText }}</strong> &middot; sTBILL: <strong>{{ stbillText }}</strong></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <sc-if value="{{ needTrustline }}" hint-placeholder-val="{{ false }}"><button class="pp-btn" onClick="{{ openTrustline }}" disabled="{{ actionBusy }}">Open trustlines</button></sc-if>
+          <sc-if value="{{ canAuthorize }}" hint-placeholder-val="{{ false }}"><button class="pp-btn" onClick="{{ authorizeTrustline }}" disabled="{{ actionBusy }}">Authorize trustline</button></sc-if>
+          <button class="pp-btn pp-btn-ghost" onClick="{{ syncMine }}" disabled="{{ actionBusy }}">Sync expired trustlines</button>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ notConnected }}" hint-placeholder-val="{{ true }}"><div style="margin-bottom:34px;"></div></sc-if>
 
     <div class="pp-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%, 340px),1fr));gap:24px;align-items:start;">
 
@@ -85,20 +131,23 @@
           <div ref="{{ setStep1 }}" style="width:30px;height:30px;border-radius:50%;border:1.5px solid #C6C0B0;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A8474;transition:all .3s;">1</div>
           <div>
             <div style="font-family:'Newsreader',Georgia,serif;font-size:1.35rem;line-height:1.15;margin-bottom:4px;">Connect Freighter</div>
-            <p style="margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#6E6A5A;">Your Stellar wallet signs the verification transaction.</p>
+            <p style="margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#6E6A5A;">Your Stellar wallet signs the transactions.</p>
             <sc-if value="{{ notConnected }}" hint-placeholder-val="{{ true }}">
               <div class="pp-connect-btns" style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
                 <button onClick="{{ connect }}" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#F8F4EC;background:#16140F;border:1px solid #16140F;padding:12px 20px;border-radius:999px;cursor:pointer;transition:all .2s;" style-hover="background:#C24E2C;border-color:#C24E2C;">Connect Freighter</button>
                 <button onClick="{{ enableMock }}" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;color:#8A8474;background:transparent;border:1px dashed #C6C0B0;padding:11px 16px;border-radius:999px;cursor:pointer;" style-hover="border-color:#C24E2C;color:#C24E2C;">Demo Mode</button>
               </div>
               <div style="margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8A8474;line-height:1.45;">
-                <span style="color:#C24E2C;">&#9679;</span> On mobile or without Freighter? Tap <strong>Demo Mode</strong> to test immediately.
+                <span style="color:#C24E2C;">&#9679;</span> On mobile or without Freighter? Tap <strong>Demo Mode</strong> to walk through everything instantly.
               </div>
             </sc-if>
             <sc-if value="{{ wallet }}" hint-placeholder-val="{{ false }}">
-              <div style="display:inline-flex;align-items:center;gap:10px;background:#EEF3EF;border:1px solid #CBE0D1;border-radius:999px;padding:9px 15px;">
-                <span style="width:8px;height:8px;border-radius:50%;background:#3E8E5A;"></span>
-                <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#2C6B44;">{{ walletShort }}</span>
+              <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
+                <div style="display:inline-flex;align-items:center;gap:10px;background:#EEF3EF;border:1px solid #CBE0D1;border-radius:999px;padding:9px 15px;">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#3E8E5A;"></span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#2C6B44;">{{ walletShort }}</span>
+                </div>
+                <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#C24E2C;border:1px dashed #E3B9A8;border-radius:999px;padding:6px 11px;">demo mode &middot; simulated chain</span></sc-if>
               </div>
             </sc-if>
           </div>
@@ -108,16 +157,21 @@
         <div class="pp-step" style="display:grid;grid-template-columns:38px 1fr;gap:18px;padding:26px 0;border-bottom:1px solid #E7E1D2;">
           <div ref="{{ setStep2 }}" style="width:30px;height:30px;border-radius:50%;border:1.5px solid #C6C0B0;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A8474;transition:all .3s;">2</div>
           <div>
-            <div style="font-family:'Newsreader',Georgia,serif;font-size:1.35rem;line-height:1.15;margin-bottom:4px;">Upload proof.json</div>
-            <p style="margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#6E6A5A;">Produced offline by the SP1 zkVM prover and uploaded here. Only public inputs &mdash; investor wallet, nullifier, timestamp &mdash; are shown.</p>
+            <div style="font-family:'Newsreader',Georgia,serif;font-size:1.35rem;line-height:1.15;margin-bottom:4px;">Choose a Pass &amp; load its proof</div>
+            <p style="margin:0 0 14px;font-size:13.5px;line-height:1.55;color:#6E6A5A;">Proofs are produced offline by the SP1 zkVM. Public inputs shown below are exactly what goes on-chain.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+              <button onClick="{{ pickPolicy1 }}" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.04em;padding:8px 13px;border-radius:999px;cursor:pointer;border:1px solid {{ tab1Border }};background:{{ tab1Bg }};color:{{ tab1Col }};">Pass 1 &middot; Accredited Investor</button>
+              <button onClick="{{ pickPolicy2 }}" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.04em;padding:8px 13px;border-radius:999px;cursor:pointer;border:1px solid {{ tab2Border }};background:{{ tab2Bg }};color:{{ tab2Col }};">Pass 2 &middot; Licensed Pharmacist</button>
+            </div>
+            <div style="margin:-4px 0 14px;font-size:12px;line-height:1.5;color:#8A8474;">{{ policyNote }}</div>
             <sc-if value="{{ noProof }}" hint-placeholder-val="{{ true }}">
               <div>
-                <label ref="{{ setDrop }}" onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDrop }}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;border:1.5px dashed #C6C0B0;border-radius:6px;padding:26px 20px;cursor:pointer;transition:all .2s;background:#FBF9F3;">
+                <label ref="{{ setDrop }}" onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDrop }}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;border:1.5px dashed #C6C0B0;border-radius:6px;padding:24px 20px;cursor:pointer;transition:all .2s;background:#FBF9F3;">
                   <span style="font-family:'IBM Plex Mono',monospace;font-size:20px;color:#C24E2C;">{ }</span>
                   <span style="font-size:13px;color:#575346;">Drop <code style="font-family:'IBM Plex Mono',monospace;">proof.json</code> or click to browse</span>
                   <input type="file" accept="application/json,.json" onChange="{{ onFile }}" style="display:none;">
                 </label>
-                <div style="margin-top:12px;font-size:12.5px;color:#8A8474;">No file handy? <a onClick="{{ loadSample }}" style="color:#C24E2C;text-decoration:underline;cursor:pointer;">Load a sample proof</a></div>
+                <div style="margin-top:12px;font-size:12.5px;color:#8A8474;">No file handy? <a onClick="{{ loadSample }}" style="color:#C24E2C;text-decoration:underline;cursor:pointer;">Load the bundled demo proof for {{ policyShort }}</a></div>
               </div>
             </sc-if>
             <sc-if value="{{ proof }}" hint-placeholder-val="{{ false }}">
@@ -127,7 +181,7 @@
                   <a onClick="{{ clearProof }}" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8A8474;cursor:pointer;text-decoration:underline;">replace</a>
                 </div>
                 <div style="padding:6px 14px 10px;">
-                  <sc-for list="{{ signals }}" as="sig" hint-placeholder-count="4">
+                  <sc-for list="{{ signals }}" as="sig" hint-placeholder-count="6">
                     <div class="pp-signals-row" style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid #F0ECE0;">
                       <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.04em;color:#9A937F;text-transform:uppercase;">{{ sig.k }}</span>
                       <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3B382E;text-align:right;word-break:break-all;">{{ sig.v }}</span>
@@ -144,11 +198,15 @@
           <div ref="{{ setStep3 }}" style="width:30px;height:30px;border-radius:50%;border:1.5px solid #C6C0B0;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A8474;transition:all .3s;">3</div>
           <div>
             <div style="font-family:'Newsreader',Georgia,serif;font-size:1.35rem;line-height:1.15;margin-bottom:4px;">Submit to Soroban</div>
-            <p style="margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#6E6A5A;">The contract verifies the BN254 pairing on-chain and authorizes your trustline.</p>
-            <button class="pp-submit-btn" onClick="{{ submit }}" disabled="{{ submitDisabled }}" ref="{{ setSubmitBtn }}" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;padding:13px 22px;border-radius:999px;cursor:pointer;transition:all .2s;border:1px solid #C24E2C;background:#C24E2C;color:#F8F4EC;display:inline-flex;align-items:center;gap:10px;" style-hover="background:#16140F;border-color:#16140F;">
-              <span>{{ submitLabel }}</span>
-              <sc-if value="{{ busy }}" hint-placeholder-val="{{ false }}"><span style="width:12px;height:12px;border:2px solid rgba(248,244,236,0.4);border-top-color:#F8F4EC;border-radius:50%;display:inline-block;animation:ppspin .7s linear infinite;"></span></sc-if>
-            </button>
+            <p style="margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#6E6A5A;">The contract checks the BN254 pairing on-chain, then issues your Pass.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+              <button class="pp-submit-btn" onClick="{{ submit }}" disabled="{{ submitDisabled }}" ref="{{ setSubmitBtn }}" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;padding:13px 22px;border-radius:999px;cursor:pointer;transition:all .2s;border:1px solid #C24E2C;background:#C24E2C;color:#F8F4EC;display:inline-flex;align-items:center;gap:10px;" style-hover="background:#16140F;border-color:#16140F;">
+                <span>{{ submitLabel }}</span>
+                <sc-if value="{{ busy }}" hint-placeholder-val="{{ false }}"><span style="width:12px;height:12px;border:2px solid rgba(248,244,236,0.4);border-top-color:#F8F4EC;border-radius:50%;display:inline-block;animation:ppspin .7s linear infinite;"></span></sc-if>
+              </button>
+              <sc-if value="{{ canReplay }}" hint-placeholder-val="{{ false }}"><button class="pp-btn pp-btn-ghost" onClick="{{ replay }}" disabled="{{ actionBusy }}">Test replay attack</button></sc-if>
+              <sc-if value="{{ canNext }}" hint-placeholder-val="{{ false }}"><button class="pp-btn pp-btn-ghost" onClick="{{ nextPass }}">Verify another Pass</button></sc-if>
+            </div>
           </div>
         </div>
       </section>
@@ -168,12 +226,11 @@
             </div>
           </div>
 
-          <!-- trustline -->
-          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;color:#8A8474;text-transform:uppercase;margin-bottom:12px;">Trustline authorization</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;color:#8A8474;text-transform:uppercase;margin-bottom:12px;">Pass &amp; trustline</div>
           <div style="display:flex;align-items:stretch;gap:12px;margin-bottom:22px;">
             <div style="flex:1;border:1px solid #2A271F;border-radius:5px;padding:14px;background:#1C1A13;">
               <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#6E6A5A;text-transform:uppercase;margin-bottom:8px;">Before</div>
-              <div style="display:inline-flex;align-items:center;gap:8px;"><span style="width:8px;height:8px;border-radius:50%;background:#B5573B;"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#D8A28E;">not_authorized</span></div>
+              <div style="display:inline-flex;align-items:center;gap:8px;"><span style="width:8px;height:8px;border-radius:50%;background:#B5573B;"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#D8A28E;">no_pass</span></div>
             </div>
             <div style="display:flex;align-items:center;color:#6E6A5A;font-size:18px;">&#8594;</div>
             <div ref="{{ setAfterCard }}" style="flex:1;border:1px solid #2A271F;border-radius:5px;padding:14px;background:#1C1A13;transition:all .4s;">
@@ -182,7 +239,6 @@
             </div>
           </div>
 
-          <!-- tx result -->
           <div ref="{{ setTxRow }}" style="display:none;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #2A271F;padding-top:18px;">
             <div>
               <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#6E6A5A;text-transform:uppercase;margin-bottom:5px;">Transaction</div>
@@ -191,25 +247,117 @@
             <a ref="{{ setTxLink }}" href="#" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#E8A07E;text-decoration:none;border:1px solid #504B3E;padding:9px 14px;border-radius:999px;white-space:nowrap;" style-hover="border-color:#E8A07E;">View on Explorer &#8599;</a>
           </div>
 
-          <!-- error -->
           <div ref="{{ setErrBox }}" style="display:none;align-items:flex-start;gap:10px;border-top:1px solid #2A271F;padding-top:16px;margin-top:2px;">
             <span style="color:#D9663F;font-family:'IBM Plex Mono',monospace;font-size:12px;flex:none;">!</span>
             <span ref="{{ setErrText }}" style="font-size:12.5px;line-height:1.5;color:#D8A28E;"></span>
           </div>
 
-          <!-- reset -->
           <div ref="{{ setResetRow }}" style="display:none;margin-top:16px;text-align:center;">
             <a onClick="{{ reset }}" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;color:#8A8474;cursor:pointer;text-decoration:underline;">Reset demo</a>
           </div>
         </div>
       </section>
     </div>
+
+    <!-- MARKETS -->
+    <div style="margin:64px 0 22px;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#C24E2C;text-transform:uppercase;margin-bottom:14px;">Gated markets</div>
+      <h2 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:clamp(1.9rem,3.4vw,2.8rem);line-height:1.05;letter-spacing:-0.02em;">Three markets. Two passes. Checked live on every action.</h2>
+      <p style="margin:12px 0 0;font-size:14.5px;line-height:1.6;color:#575346;max-width:640px;">Each market asks the gate &ldquo;does this wallet hold an active Pass?&rdquo; at the moment you act. Revoke or expire a Pass and its markets close instantly, while your other Pass keeps working.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%, 340px),1fr));gap:20px;align-items:start;">
+
+      <!-- MARKET 1 -->
+      <div class="pp-card" style="padding:22px 22px 24px;display:flex;flex-direction:column;gap:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#9A937F;text-transform:uppercase;">Market 1 &middot; needs Pass #1</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 11px;border-radius:999px;background:{{ m1BadgeBg }};color:{{ m1BadgeCol }};">{{ m1Badge }}</span>
+        </div>
+        <div style="font-family:'Newsreader',Georgia,serif;font-size:1.5rem;line-height:1.1;">sTBILL Treasury Vault</div>
+        <p style="margin:0;font-size:13px;line-height:1.55;color:#6E6A5A;">Deposit USDC, receive permissioned tokenized T-bill shares (sTBILL) that only an authorized trustline can hold.</p>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3B382E;">Your principal: <strong>{{ m1Principal }}</strong> USDC</div>
+        <div style="display:flex;gap:8px;">
+          <input type="number" min="1" value="{{ m1AmtVal }}" onChange="{{ onM1Amt }}" class="pp-input">
+          <button class="pp-btn" onClick="{{ m1Deposit }}" disabled="{{ m1DepositDisabled }}">Deposit</button>
+          <button class="pp-btn pp-btn-ghost" onClick="{{ m1Redeem }}" disabled="{{ actionBusy }}">Redeem</button>
+        </div>
+        <sc-if value="{{ m1Locked }}" hint-placeholder-val="{{ true }}"><div style="font-size:12px;color:#9A5A3F;">&#128274; Locked &mdash; load Pass #1 above to unlock.</div></sc-if>
+      </div>
+
+      <!-- MARKET 2 -->
+      <div class="pp-card" style="padding:22px 22px 24px;display:flex;flex-direction:column;gap:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#9A937F;text-transform:uppercase;">Market 2 &middot; needs Pass #1</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 11px;border-radius:999px;background:{{ m2BadgeBg }};color:{{ m2BadgeCol }};">{{ m2Badge }}</span>
+        </div>
+        <div style="font-family:'Newsreader',Georgia,serif;font-size:1.5rem;line-height:1.1;">Cross-Border Yield Vault <span style="font-size:1rem;color:#C24E2C;">{{ apyText }}</span></div>
+        <p style="margin:0;font-size:13px;line-height:1.55;color:#6E6A5A;">Same Pass, second protocol. Earn yield on USDC. You can always take your principal back, even after your Pass expires.</p>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3B382E;line-height:1.7;">Principal: <strong>{{ m2Principal }}</strong> USDC<br>Accrued yield: <strong style="color:#3E8E5A;">{{ m2Yield }}</strong> USDC</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <input type="number" min="1" value="{{ m2AmtVal }}" onChange="{{ onM2Amt }}" class="pp-input">
+          <button class="pp-btn" onClick="{{ m2Deposit }}" disabled="{{ m2DepositDisabled }}">Deposit</button>
+          <button class="pp-btn" onClick="{{ m2Claim }}" disabled="{{ m2DepositDisabled }}">Claim yield</button>
+          <button class="pp-btn pp-btn-ghost" onClick="{{ m2Redeem }}" disabled="{{ actionBusy }}">Redeem</button>
+        </div>
+        <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;color:#8A8474;font-family:'IBM Plex Mono',monospace;">demo time-lapse: 1 second = 1 day of yield</div></sc-if>
+        <sc-if value="{{ m2Locked }}" hint-placeholder-val="{{ true }}"><div style="font-size:12px;color:#9A5A3F;">&#128274; Locked &mdash; Pass #1 unlocks this market too.</div></sc-if>
+      </div>
+
+      <!-- MARKET 3 -->
+      <div class="pp-card" style="padding:22px 22px 24px;display:flex;flex-direction:column;gap:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#9A937F;text-transform:uppercase;">Market 3 &middot; needs Pass #2</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 11px;border-radius:999px;background:{{ m3BadgeBg }};color:{{ m3BadgeCol }};">{{ m3Badge }}</span>
+        </div>
+        <div style="font-family:'Newsreader',Georgia,serif;font-size:1.5rem;line-height:1.1;">Regulated Medical Supply Checkout</div>
+        <p style="margin:0;font-size:13px;line-height:1.55;color:#6E6A5A;">Wholesale medicines, sold only to licensed pharmacists. Strict isolation: an investor Pass does <em>not</em> open this door.</p>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#3B382E;">Quantity <input type="number" min="1" value="{{ qtyVal }}" onChange="{{ onQty }}" class="pp-input" style="width:70px;"></div>
+        <sc-for list="{{ skuRows }}" as="sku" hint-placeholder-count="2">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid #E7E1D2;border-radius:6px;background:#FBF9F3;">
+            <div style="font-size:12.5px;line-height:1.4;">{{ sku.label }}<br><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8A8474;">{{ sku.price }} USDC &middot; {{ sku.stock }} in stock</span></div>
+            <button class="pp-btn" onClick="{{ sku.buy }}" disabled="{{ m3Disabled }}">Buy</button>
+          </div>
+        </sc-for>
+        <sc-if value="{{ hasOrder }}" hint-placeholder-val="{{ false }}"><div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#2C6B44;background:#EEF3EF;border:1px solid #CBE0D1;border-radius:6px;padding:9px 12px;">Receipt #{{ orderId }}: {{ orderText }}</div></sc-if>
+        <sc-if value="{{ m3Locked }}" hint-placeholder-val="{{ true }}"><div style="font-size:12px;color:#9A5A3F;">&#128274; Locked &mdash; needs Pass #2 (Licensed Pharmacist).</div></sc-if>
+      </div>
+    </div>
+
+    <!-- ADMIN -->
+    <div style="margin-top:56px;border-top:1px solid #D6D0C0;padding-top:22px;">
+      <a onClick="{{ toggleAdmin }}" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:#16140F;cursor:pointer;">{{ adminToggleText }}</a>
+      <sc-if value="{{ adminOpen }}" hint-placeholder-val="{{ false }}">
+        <div class="pp-card" style="margin-top:16px;padding:20px 22px;display:flex;flex-direction:column;gap:14px;">
+          <p style="margin:0;font-size:13px;line-height:1.55;color:#6E6A5A;">Compliance controls. Only the gate admin can revoke or reinstate; anyone can sync expired passes. In this panel the target is the connected wallet. {{ adminHint }}</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <button class="pp-btn" onClick="{{ revoke1 }}" disabled="{{ actionBusy }}">Revoke Pass #1</button>
+            <button class="pp-btn" onClick="{{ revoke2 }}" disabled="{{ actionBusy }}">Revoke Pass #2</button>
+            <button class="pp-btn pp-btn-ghost" onClick="{{ reinstate1 }}" disabled="{{ actionBusy }}">Reinstate Pass #1</button>
+            <button class="pp-btn pp-btn-ghost" onClick="{{ reinstate2 }}" disabled="{{ actionBusy }}">Reinstate Pass #2</button>
+            <button class="pp-btn pp-btn-ghost" onClick="{{ syncMine }}" disabled="{{ actionBusy }}">Sync authorization</button>
+            <sc-if value="{{ isDemo }}" hint-placeholder-val="{{ false }}"><button class="pp-btn pp-btn-ghost" onClick="{{ expire1 }}" disabled="{{ actionBusy }}">Demo: expire Pass #1</button></sc-if>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+
+    <p style="margin:34px 0 0;font-size:12.5px;line-height:1.6;color:#8A8474;max-width:720px;">Privacy note: no PDF or personal data leaves your device. The contract stores only an expiry date and a revoked flag per Pass. The proof&rsquo;s public inputs (including the issuer fingerprint and a one-time replay tag) are visible in the transaction itself; hiding those too is on our roadmap.</p>
   </main>
 </div>
 </x-dc>
+
 <script type="text/x-dc" data-dc-script>
 class Component extends DCLogic {
-  state = { wallet: null, proof: null, status: 'idle', busy: false, txHash: null };
+  state = {
+    wallet: null, proof: null, status: 'idle', busy: false, txHash: null,
+    policy: 1, mock: false,
+    passes: { 1: null, 2: null }, trust: { open: false, authorized: false },
+    bal: { usdc: 0, stbill: 0 }, v1: { principal: 0 }, v2: { principal: 0, accruedYield: 0, apyPct: 0 },
+    skus: [], lastOrder: null,
+    notice: null, actionBusy: false, adminOpen: false, verifiedOnce: false,
+    m1Amt: '500', m2Amt: '1000', qty: '1',
+  };
 
   setHost = (el) => { this.host = el; };
   setStep1 = (el) => { this.step1 = el; };
@@ -223,58 +371,56 @@ class Component extends DCLogic {
   setAfterCard = (el) => { this.afterCard = el; };
   setAfterVal = (el) => { this.afterVal = el; };
   setTxRow = (el) => { this.txRow = el; };
-  setTxHash = (el) => { this.txHashEl = el; };
+  setTxHashEl = (el) => { this.txHashEl = el; };
   setTxLink = (el) => { this.txLink = el; };
   setResetRow = (el) => { this.resetRow = el; };
   setErrBox = (el) => { this.errBox = el; };
   setErrText = (el) => { this.errText = el; };
+  onM1Amt = (e) => this.setState({ m1Amt: e.target.value });
+  onM2Amt = (e) => this.setState({ m2Amt: e.target.value });
+  onQty = (e) => this.setState({ qty: e.target.value });
 
-  // All wallet / proof / contract calls go through the adapter in
-  // proofpass-api.js.
+  _api() { return this.api || window.proofpassApi; }
+  _msg(e) { return (e && e.message) ? e.message : String(e); }
+  _num(val, dflt) { const v = Number(val); return (isFinite(v) && v > 0) ? v : dflt; }
+
+  // ---------------- wallet ----------------
   connect = async () => {
-    const api = this.api || window.proofpassApi;
-    if (!api) {
-      this.setState({ errorMsg: 'Adapter still loading... please try again.' });
-      return;
-    }
+    const api = this._api();
+    if (!api) { this.setState({ notice: { kind: 'err', text: 'Adapter still loading... please try again.' } }); return; }
     if (this.state.busy) return;
-    this.setState({ busy: true, errorMsg: null });
+    this.setState({ busy: true, notice: null });
     try {
       const { address } = await api.wallet.connect();
-      this.setState({ wallet: address, busy: false, errorMsg: null });
+      this.setState({ wallet: address, busy: false });
+      this._refresh();
     } catch (e) {
-      console.warn('Wallet connect error:', e);
-      this.setState({ busy: false, errorMsg: this._msg(e) });
+      this.setState({ busy: false, notice: { kind: 'err', text: this._msg(e) } });
     }
   };
 
   enableMock = async () => {
-    const api = this.api || window.proofpassApi;
+    const api = this._api();
     if (api && api.config) api.config.USE_MOCK = true;
-    this.setState({ busy: true, errorMsg: null });
-    try {
-      const res = api ? await api.wallet.connect() : { address: 'GBRXZQGGINSVW3LKSUFJWGQE534V5F47QONOXVSRI3RC3DIEF5I5DXYW' };
-      this.setState({ wallet: res.address, busy: false, errorMsg: null });
-    } catch (e) {
-      this.setState({ wallet: 'GBRXZQGGINSVW3LKSUFJWGQE534V5F47QONOXVSRI3RC3DIEF5I5DXYW', busy: false, errorMsg: null });
-    }
+    this.setState({ busy: true, notice: null, mock: true });
+    let address = 'GBRXZQGGINSVW3LKSUFJWGQE534V5F47QONOXVSRI3RC3DIEF5I5DXYW';
+    try { if (api) address = (await api.wallet.connect()).address; } catch (e) { /* keep default */ }
+    this.setState({ wallet: address, busy: false });
+    this._refresh();
   };
 
+  // ---------------- proof ----------------
   _parse = async (input) => {
-    if (!this.api) return;
+    const api = this._api();
+    if (!api) return;
     try {
-      const proof = await this.api.proof.parse(input);
-      this.setState({ proof, errorMsg: null });
+      const proof = await api.proof.parse(input);
+      this.setState({ proof, policy: proof.policyId === 2 ? 2 : 1, notice: null });
     } catch (e) {
-      this.setState({ errorMsg: 'Could not read proof.json — ' + this._msg(e) });
+      this.setState({ notice: { kind: 'err', text: 'Could not read proof.json: ' + this._msg(e) } });
     }
   };
-
-  onFile = (e) => {
-    const f = e.target && e.target.files && e.target.files[0];
-    if (f) this._parse(f);
-  };
-
+  onFile = (e) => { const f = e.target && e.target.files && e.target.files[0]; if (f) this._parse(f); };
   onDragOver = (e) => { e.preventDefault(); if (this.drop) { this.drop.style.borderColor = '#C24E2C'; this.drop.style.background = '#F7ECE6'; } };
   onDragLeave = (e) => { e.preventDefault(); if (this.drop) { this.drop.style.borderColor = '#C6C0B0'; this.drop.style.background = '#FBF9F3'; } };
   onDrop = (e) => {
@@ -283,69 +429,233 @@ class Component extends DCLogic {
     const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
     if (f) this._parse(f);
   };
-
-  loadSample = () => { if (this.api) this._parse(this.api.sampleProof()); };
+  loadSample = () => { const api = this._api(); if (api) this._parse(api.sampleProof(this.state.policy)); };
   clearProof = () => this.setState({ proof: null });
+  pickPolicy1 = () => this.setState({ policy: 1, proof: null });
+  pickPolicy2 = () => this.setState({ policy: 2, proof: null });
 
+  // ---------------- verify ----------------
   submit = async () => {
-    if (!this.api || !this.state.wallet || !this.state.proof || this.state.busy) return;
+    const api = this._api();
+    if (!api || !this.state.wallet || !this.state.proof || this.state.busy) return;
     this._orb = 'pending';
-    this.setState({ status: 'pending', busy: true, errorMsg: null });
+    this.setState({ status: 'pending', busy: true, notice: null });
     try {
-      const res = await this.api.verifier.submit(
+      const res = await api.gate.verifyAndAuthorize(
         { address: this.state.wallet, proof: this.state.proof },
-        (stage) => { this._orb = stage; this.setState({ status: stage }); }
+        (stage) => { if (stage === 'pending' || stage === 'verifying') { this._orb = stage; this.setState({ status: stage }); } }
       );
       this._orb = 'verified';
-      this.setState({ status: 'verified', busy: false, txHash: res.txHash, explorerUrl: res.explorerUrl });
+      this.setState({ status: 'verified', busy: false, txHash: res.txHash, explorerUrl: res.explorerUrl, verifiedOnce: true, lastProof: this.state.proof });
+      this._refresh();
     } catch (e) {
       this._orb = 'idle';
-      this.setState({ status: 'error', busy: false, errorMsg: this._msg(e) });
+      const err = api.decodeError(e, 'gate');
+      this.setState({ status: 'error', busy: false, errorMsg: err.message });
     }
   };
 
-  _msg(e) { return (e && e.message) ? e.message : String(e); }
+  replay = async () => {
+    const api = this._api();
+    const p = this.state.lastProof;
+    if (!api || !p || this.state.actionBusy) return;
+    this.setState({ actionBusy: true, notice: null });
+    try {
+      await api.gate.verifyAndAuthorize({ address: this.state.wallet, proof: p });
+      this.setState({ actionBusy: false, notice: { kind: 'err', text: 'Unexpected: the replay was accepted.' } });
+    } catch (e) {
+      const err = api.decodeError(e, 'gate');
+      const blocked = err.code === 1;
+      this.setState({ actionBusy: false, notice: { kind: blocked ? 'ok' : 'err', text: blocked ? 'Replay blocked on-chain \u2713 ' + err.message : err.message } });
+    }
+  };
+
+  nextPass = () => {
+    this._orb = 'idle';
+    this.setState({ proof: null, status: 'idle', busy: false, txHash: null, explorerUrl: null, errorMsg: null, policy: this.state.policy === 1 ? 2 : 1 });
+  };
 
   reset = () => {
+    const api = this._api();
+    if (api && api.resetDemo) api.resetDemo();
     this._orb = 'idle';
-    this.setState({ wallet: null, proof: null, status: 'idle', busy: false, txHash: null, explorerUrl: null, errorMsg: null });
+    this.setState({
+      proof: null, status: 'idle', busy: false, txHash: null, explorerUrl: null, errorMsg: null,
+      verifiedOnce: false, lastProof: null, lastOrder: null, notice: null,
+    });
+    this._refresh();
   };
+
+  // ---------------- generic action runner ----------------
+  async _act(scope, okText, fn) {
+    const api = this._api();
+    if (!api || !this.state.wallet || this.state.actionBusy) return;
+    this.setState({ actionBusy: true, notice: null });
+    try {
+      const r = await fn(api, this.state.wallet);
+      const text = typeof okText === 'function' ? okText(r) : okText;
+      this.setState({ actionBusy: false, notice: { kind: 'ok', text, link: r && r.explorerUrl } });
+    } catch (e) {
+      const err = api.decodeError(e, scope);
+      this.setState({ actionBusy: false, notice: { kind: 'err', text: err.message } });
+    }
+    this._refresh();
+  }
+
+  openTrustline = () => this._act('gate', 'Trustlines opened (USDC + sTBILL).', (api, a) => api.gate.openTrustline({ address: a }));
+  authorizeTrustline = () => this._act('gate', 'sTBILL trustline authorized by your Pass.', (api, a) => api.gate.authorizeAsset({ address: a, policyId: 1 }));
+  syncMine = () => this._act('gate', 'Sync complete: any expired or revoked passes are now locked out.', (api, a) => api.gate.syncAuthorization({ address: a, policyId: 1 }));
+
+  m1Deposit = () => this._act('vault', 'Deposited into the Treasury Vault. sTBILL shares received.', (api, a) => api.markets.deposit(1, a, this._num(this.state.m1Amt, 500)));
+  m1Redeem = () => this._act('vault', 'Redeemed from the Treasury Vault.', (api, a) => api.markets.redeem(1, a, this._num(this.state.m1Amt, 500)));
+  m2Deposit = () => this._act('vault', 'Deposited into the Yield Vault.', (api, a) => api.markets.deposit(2, a, this._num(this.state.m2Amt, 1000)));
+  m2Claim = () => this._act('vault', (r) => 'Yield claimed' + (r && r.claimed ? ': ' + r.claimed.toFixed(4) + ' USDC' : '.'), (api, a) => api.markets.claimYield(a));
+  m2Redeem = () => this._act('vault', 'Principal redeemed. (Exits are never blocked.)', (api, a) => api.markets.redeem(2, a, this._num(this.state.m2Amt, 1000)));
+  _buy(skuId) {
+    const qty = Math.floor(this._num(this.state.qty, 1));
+    return this._act('checkout', (r) => 'Order placed: ' + (r.order ? r.order.quantity + ' x ' + r.order.label : 'done'), async (api, a) => {
+      const r = await api.markets.purchase(a, skuId, qty);
+      this.setState({ lastOrder: r.order });
+      return r;
+    });
+  }
+
+  toggleAdmin = () => this.setState({ adminOpen: !this.state.adminOpen });
+  revoke1 = () => this._act('gate', 'Pass #1 revoked. Its markets are now locked.', (api, a) => api.gate.revokeCredential({ address: a, targetAddress: a, policyId: 1 }));
+  revoke2 = () => this._act('gate', 'Pass #2 revoked. The medical checkout is now locked.', (api, a) => api.gate.revokeCredential({ address: a, targetAddress: a, policyId: 2 }));
+  reinstate1 = () => this._act('gate', 'Pass #1 reinstated.', (api, a) => api.gate.reinstateCredential({ address: a, targetAddress: a, policyId: 1 }));
+  reinstate2 = () => this._act('gate', 'Pass #2 reinstated.', (api, a) => api.gate.reinstateCredential({ address: a, targetAddress: a, policyId: 2 }));
+  expire1 = () => this._act('gate', 'Demo: Pass #1 now past its expiry. Hit "Sync" to lock the trustline.', async (api) => { api.gate.demoExpirePass(1); return {}; });
+  dismissNotice = () => this.setState({ notice: null });
+
+  // ---------------- refresh from chain / demo world ----------------
+  async _refresh() {
+    const api = this._api();
+    const a = this.state.wallet;
+    if (!api || !a || this._refreshing) return;
+    this._refreshing = true;
+    try {
+      const [p1, p2, trust, bal, v1, v2, co] = await Promise.all([
+        api.gate.getPassStatus(a, 1), api.gate.getPassStatus(a, 2), api.gate.getTrustline(a),
+        api.markets.getBalances(a), api.markets.getVaultState(1, a), api.markets.getVaultState(2, a),
+        api.markets.getCheckoutState(),
+      ]);
+      const next = { passes: { 1: p1, 2: p2 }, trust, bal, v1, v2, skus: co.skus };
+      const sig = JSON.stringify(next);
+      if (sig !== this._lastSig) { this._lastSig = sig; this.setState(next); }
+    } catch (e) {
+      if (!this._warned) {
+        this._warned = true;
+        this.setState({ notice: { kind: 'err', text: this._msg(e) } });
+      }
+    }
+    this._refreshing = false;
+  }
+
+  _fmtDate(ts) { return ts ? new Date(ts * 1000).toISOString().slice(0, 10) : ''; }
 
   renderVals() {
     const s = this.state;
     const walletShort = s.wallet ? (s.wallet.slice(0, 5) + '\u2026' + s.wallet.slice(-5)) : '';
     const proof = s.proof;
-    const short = (h) => (h && h.length > 20) ? (h.slice(0, 10) + '\u2026' + h.slice(-6)) : h;
+    const short = (h) => (h && String(h).length > 20) ? (String(h).slice(0, 10) + '\u2026' + String(h).slice(-6)) : h;
+    const fmt = (n, d) => Number(n || 0).toFixed(d === undefined ? 2 : d);
     const signals = proof ? [
       { k: 'proof system', v: proof.system + ' / ' + proof.curve },
-      { k: 'investor', v: short(proof.investorWallet) },
+      { k: 'policy', v: '#' + proof.policyId + ' ' + (proof.policyId === 2 ? 'Licensed Pharmacist' : 'Accredited Investor') },
+      { k: 'wallet hash', v: short(proof.walletHash) },
+      { k: 'issuer', v: short(proof.issuerHash) },
       { k: 'nullifier', v: short(proof.nullifier) },
-      { k: 'timestamp', v: String(proof.timestamp) },
+      { k: 'doc signed', v: proof.docTimestamp ? this._fmtDate(proof.docTimestamp) : 'n/a' },
     ] : [];
+
     let submitLabel = 'Submit to Soroban';
     if (s.status === 'pending') submitLabel = 'Submitting\u2026';
     else if (s.status === 'verifying') submitLabel = 'Verifying\u2026';
     else if (s.status === 'verified') submitLabel = 'Verified';
+
+    // pass cards
+    const names = { 1: 'Accredited Investor', 2: 'Licensed Pharmacist' };
+    const issuers = { 1: 'Issuer: DocuSign (AATL)', 2: 'Issuer: Mock Pharmacy Board (Testnet stand-in)' };
+    const passCards = [1, 2].map((id) => {
+      const p = s.passes[id];
+      let badge = 'Locked', bg = '#EFEBE0', col = '#6E6A5A', border = '#DFD9C9', dot = '#B5AE9A';
+      let detail = s.wallet ? 'No Pass yet. ' + issuers[id] : 'Connect a wallet to see your Pass. ' + issuers[id];
+      if (p && p.revoked) { badge = 'Revoked'; bg = '#F7E3DC'; col = '#9A3F22'; border = '#E8B9A9'; dot = '#C24E2C'; detail = 'Revoked by the compliance admin. ' + issuers[id]; }
+      else if (p && p.authorized) { badge = 'Active'; bg = '#EEF3EF'; col = '#2C6B44'; border = '#CBE0D1'; dot = '#3E8E5A'; detail = 'Expires ' + this._fmtDate(p.expiresAt) + '. ' + issuers[id]; }
+      else if (p && p.expired) { badge = 'Expired'; bg = '#F6EBD3'; col = '#8A6416'; border = '#E6D3A4'; dot = '#C9962B'; detail = 'Expired ' + this._fmtDate(p.expiresAt) + '. Submit a fresh proof. ' + issuers[id]; }
+      return { id, name: names[id], badge, badgeBg: bg, badgeCol: col, badgeBorder: border, dot, detail };
+    });
+
+    const act = (id) => !!(s.passes[id] && s.passes[id].authorized);
+    const badgeFor = (u) => u ? { t: 'Unlocked', bg: '#EEF3EF', c: '#2C6B44' } : { t: 'Locked', bg: '#F7E3DC', c: '#9A3F22' };
+    const b1 = badgeFor(act(1)), b2 = badgeFor(act(1)), b3 = badgeFor(act(2));
+
+    const skuRows = (s.skus || []).map((k) => ({
+      label: k.label, price: fmt(k.unit_price, 0), stock: k.stock,
+      buy: () => this._buy(k.sku_id),
+    }));
+
+    const policyShort = s.policy === 2 ? 'Licensed Pharmacist' : 'Accredited Investor';
+    const policyNote = s.policy === 2
+      ? 'Pass #2 is a Testnet demo: issued by a clearly labeled mock Pharmacy Board certificate authority. In production this would be a real licensing authority.'
+      : 'Pass #1 trusts documents signed through the DocuSign AATL trust chain (on Testnet, a DocuSign-signed attestation is our stand-in for a licensed professional).';
+
+    const n = s.notice;
+    const kindMap = { ok: ['#CBE0D1', '#EEF3EF', '#2C6B44', '\u2713'], err: ['#E8B9A9', '#F7E3DC', '#9A3F22', '!'] };
+    const km = n ? kindMap[n.kind] || kindMap.err : kindMap.ok;
+
+    const trust = s.trust || {};
+    const trustText = !trust.open ? 'not opened' : (trust.authorized ? 'authorized' : 'open, frozen');
+    const trustCol = trust.authorized ? '#2C6B44' : (trust.open ? '#8A6416' : '#6E6A5A');
+
+    const apy = s.v2 && s.v2.apyPct ? '\u00b7 ' + s.v2.apyPct.toFixed(1) + '% APY' : '';
+    const lo = s.lastOrder;
+
     return {
-      wallet: s.wallet,
-      notConnected: !s.wallet,
-      walletShort,
-      proof: !!proof,
-      noProof: !proof,
-      proofSize: proof ? '1.2 KB' : '',
-      signals,
-      busy: s.busy,
+      wallet: s.wallet, notConnected: !s.wallet, walletShort, isDemo: !!s.mock,
+      proof: !!proof, noProof: !proof, proofSize: proof ? '1.2 KB' : '', signals,
+      busy: s.busy, actionBusy: s.actionBusy,
       submitDisabled: !s.wallet || !proof || s.busy || s.status === 'verified',
       submitLabel,
-      setHost: this.setHost,
-      setStep1: this.setStep1, setStep2: this.setStep2, setStep3: this.setStep3,
+      canReplay: s.status === 'verified' && !!s.lastProof,
+      canNext: s.status === 'verified',
+      // notice
+      hasNotice: !!n, noticeText: n ? n.text : '', noticeBorder: km[0], noticeBg: km[1], noticeCol: km[2], noticeIcon: km[3],
+      hasNoticeLink: !!(n && n.link), noticeLink: n && n.link ? n.link : '#',
+      // passes
+      passCards,
+      // policy tabs
+      tab1Bg: s.policy === 1 ? '#16140F' : 'transparent', tab1Col: s.policy === 1 ? '#F8F4EC' : '#514D42', tab1Border: s.policy === 1 ? '#16140F' : '#C6C0B0',
+      tab2Bg: s.policy === 2 ? '#16140F' : 'transparent', tab2Col: s.policy === 2 ? '#F8F4EC' : '#514D42', tab2Border: s.policy === 2 ? '#16140F' : '#C6C0B0',
+      policyShort, policyNote,
+      // trustline strip
+      trustText, trustCol, usdcText: fmt(s.bal.usdc), stbillText: fmt(s.bal.stbill),
+      needTrustline: !trust.open, canAuthorize: !!(trust.open && !trust.authorized && act(1)),
+      // markets
+      m1Badge: b1.t, m1BadgeBg: b1.bg, m1BadgeCol: b1.c, m1Locked: !act(1), m1Principal: fmt(s.v1.principal),
+      m1DepositDisabled: s.actionBusy || !act(1),
+      m2Badge: b2.t, m2BadgeBg: b2.bg, m2BadgeCol: b2.c, m2Locked: !act(1), m2Principal: fmt(s.v2.principal), m2Yield: fmt(s.v2.accruedYield, 4),
+      m2DepositDisabled: s.actionBusy || !act(1), apyText: apy,
+      m3Badge: b3.t, m3BadgeBg: b3.bg, m3BadgeCol: b3.c, m3Locked: !act(2), m3Disabled: s.actionBusy || !act(2),
+      skuRows, hasOrder: !!lo, orderId: lo ? lo.order_id : '', orderText: lo ? (lo.quantity + ' x ' + lo.label + ' for ' + fmt(lo.total, 0) + ' USDC') : '',
+      // admin
+      adminOpen: s.adminOpen, adminToggleText: s.adminOpen ? '\u2212 Hide compliance controls' : '+ Issuer / compliance controls',
+      adminHint: s.mock ? '(Demo mode: you are the admin.)' : '(On Testnet this only works from the admin wallet.)',
+      // refs + handlers
+      setHost: this.setHost, setStep1: this.setStep1, setStep2: this.setStep2, setStep3: this.setStep3,
       setDrop: this.setDrop, setSubmitBtn: this.setSubmitBtn,
       setStatusPill: this.setStatusPill, setStatusDot: this.setStatusDot, setStatusText: this.setStatusText,
       setAfterCard: this.setAfterCard, setAfterVal: this.setAfterVal,
       setTxRow: this.setTxRow, setTxHash: this.setTxHashEl, setTxLink: this.setTxLink, setResetRow: this.setResetRow,
-      setErrBox: this.setErrBox, setErrText: this.setErrText,
+      setErrBox: this.setErrBox, setErrText: this.setErrText, m1AmtVal: s.m1Amt, m2AmtVal: s.m2Amt, qtyVal: s.qty, onM1Amt: this.onM1Amt, onM2Amt: this.onM2Amt, onQty: this.onQty,
       connect: this.connect, enableMock: this.enableMock, onFile: this.onFile, onDragOver: this.onDragOver, onDragLeave: this.onDragLeave, onDrop: this.onDrop,
       loadSample: this.loadSample, clearProof: this.clearProof, submit: this.submit, reset: this.reset,
+      pickPolicy1: this.pickPolicy1, pickPolicy2: this.pickPolicy2, replay: this.replay, nextPass: this.nextPass,
+      openTrustline: this.openTrustline, authorizeTrustline: this.authorizeTrustline, syncMine: this.syncMine,
+      m1Deposit: this.m1Deposit, m1Redeem: this.m1Redeem, m2Deposit: this.m2Deposit, m2Claim: this.m2Claim, m2Redeem: this.m2Redeem,
+      toggleAdmin: this.toggleAdmin, revoke1: this.revoke1, revoke2: this.revoke2, reinstate1: this.reinstate1, reinstate2: this.reinstate2,
+      expire1: this.expire1, dismissNotice: this.dismissNotice,
     };
   }
 
@@ -353,25 +663,23 @@ class Component extends DCLogic {
     this._orb = 'idle';
     this._syncUI();
     this._initThree();
-    if (window.proofpassApi) {
-      this.api = window.proofpassApi;
-    }
+    if (window.proofpassApi) this.api = window.proofpassApi;
     import('./proofpass-api.js')
       .then((m) => { this.api = m; window.proofpassApi = m; })
       .catch((e) => {
         console.warn('adapter load failed', e);
-        if (!this.api && !window.proofpassApi) {
-          this.setState({ errorMsg: 'Adapter load warning: ' + (e?.message || e) });
-        }
+        if (!this.api && !window.proofpassApi) this.setState({ notice: { kind: 'err', text: 'Adapter load warning: ' + (e && e.message || e) } });
       });
+    // keep balances / yield ticking
+    this._poll = setInterval(() => { if (this.state.wallet) this._refresh(); }, 2000);
   }
 
   componentDidUpdate() { this._syncUI(); }
 
   componentWillUnmount() {
     this._alive = false;
+    if (this._poll) clearInterval(this._poll);
     if (this._raf) cancelAnimationFrame(this._raf);
-    clearTimeout(this._t1); clearTimeout(this._t2);
     window.removeEventListener('resize', this._onResize);
     if (this._t && this._t.renderer) { try { this._t.renderer.dispose(); } catch (e) {} }
   }
@@ -389,8 +697,6 @@ class Component extends DCLogic {
 
   _syncUI() {
     const s = this.state;
-    // steps
-    const n = s.wallet ? (s.wallet.slice(0, 5)) : '1';
     this._setStep(this.step1, s.wallet ? 'done' : 'active');
     if (this.step1 && !s.wallet) this.step1.textContent = '1';
     this._setStep(this.step2, s.proof ? 'done' : (s.wallet ? 'active' : 'idle'));
@@ -399,36 +705,32 @@ class Component extends DCLogic {
     this._setStep(this.step3, step3mode);
     if (this.step3 && s.status !== 'verified') this.step3.textContent = '3';
 
-    // status pill
     const map = {
       idle: { t: 'Idle', dot: '#6E6A5A', border: '#504B3E', col: '#B8B2A0', bg: 'transparent' },
       pending: { t: 'Pending', dot: '#E8A07E', border: '#7A5140', col: '#E8A07E', bg: 'rgba(194,78,44,0.12)' },
       verifying: { t: 'Verifying', dot: '#E8A07E', border: '#7A5140', col: '#E8A07E', bg: 'rgba(194,78,44,0.14)' },
       verified: { t: 'Verified \u2713', dot: '#4FB776', border: '#2C6B44', col: '#7FD09B', bg: 'rgba(62,142,90,0.16)' },
-      error: { t: 'Error', dot: '#D9663F', border: '#7A4030', col: '#E89A7E', bg: 'rgba(194,78,44,0.14)' },
+      error: { t: 'Rejected', dot: '#D9663F', border: '#7A4030', col: '#E89A7E', bg: 'rgba(194,78,44,0.14)' },
     };
     const m = map[s.status] || map.idle;
     if (this.statusText) this.statusText.textContent = m.t;
     if (this.statusDot) { this.statusDot.style.background = m.dot; this.statusDot.style.boxShadow = (s.status === 'verifying' || s.status === 'pending') ? '0 0 0 4px rgba(232,160,126,0.18)' : (s.status === 'verified' ? '0 0 0 4px rgba(79,183,118,0.2)' : 'none'); }
     if (this.statusPill) { this.statusPill.style.borderColor = m.border; this.statusPill.style.color = m.col; this.statusPill.style.background = m.bg; }
 
-    // trustline after
     const verified = s.status === 'verified';
     if (this.afterCard) { this.afterCard.style.borderColor = verified ? '#2C6B44' : '#2A271F'; this.afterCard.style.background = verified ? 'rgba(62,142,90,0.1)' : '#1C1A13'; }
     if (this.afterVal) {
       this.afterVal.innerHTML = verified
-        ? '<span style="width:8px;height:8px;border-radius:50%;background:#4FB776;"></span><span style="font-family:\'IBM Plex Mono\',monospace;font-size:12.5px;color:#7FD09B;">authorized</span>'
+        ? '<span style="width:8px;height:8px;border-radius:50%;background:#4FB776;"></span><span style="font-family:\'IBM Plex Mono\',monospace;font-size:12.5px;color:#7FD09B;">pass_active</span>'
         : '<span style="width:8px;height:8px;border-radius:50%;background:#3A362B;"></span><span style="font-family:\'IBM Plex Mono\',monospace;font-size:12.5px;color:#6E6A5A;">pending\u2026</span>';
     }
 
-    // tx row
     if (this.txRow) this.txRow.style.display = verified ? 'flex' : 'none';
     if (this.resetRow) this.resetRow.style.display = (s.status !== 'idle') ? 'block' : 'none';
     if (verified && s.txHash) {
       if (this.txHashEl) this.txHashEl.textContent = s.txHash.slice(0, 8) + '\u2026' + s.txHash.slice(-8);
       if (this.txLink) this.txLink.href = s.explorerUrl || ('https://stellar.expert/explorer/testnet/tx/' + s.txHash);
     }
-    // error banner
     if (this.errBox) {
       if (s.status === 'error' && s.errorMsg) { this.errBox.style.display = 'flex'; if (this.errText) this.errText.textContent = s.errorMsg; }
       else { this.errBox.style.display = 'none'; }
