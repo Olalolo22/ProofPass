@@ -33,8 +33,13 @@ fn set_ledger_time(env: &Env, timestamp: u64) {
     });
 }
 
-fn create_contract(env: &Env) -> (Address, ZkInvestorGateClient<'_>) {
-    let id = env.register(ZkInvestorGate {}, ());
+fn create_contract<'a>(
+    env: &'a Env,
+    admin: &Address,
+    vk: VerificationKey,
+    program_vkey: BytesN<32>,
+) -> (Address, ZkInvestorGateClient<'a>) {
+    let id = env.register(ZkInvestorGate, (admin.clone(), vk, program_vkey));
     let client = ZkInvestorGateClient::new(env, &id);
     (id, client)
 }
@@ -82,9 +87,8 @@ fn issuer_b(env: &Env) -> BytesN<32> {
 fn setup_initialized_gate(env: &Env) -> (Address, ZkInvestorGateClient<'_>, Address) {
     env.mock_all_auths();
     set_ledger_time(env, BASE_TIME);
-    let (id, client) = create_contract(env);
     let admin = Address::generate(env);
-    client.initialize(&admin, &dummy_vk(env), &dummy_program_vkey(env));
+    let (id, client) = create_contract(env, &admin, dummy_vk(env), dummy_program_vkey(env));
     client.set_policy(&POLICY_ACCREDITED_INVESTOR, &true, &ONE_YEAR);
     client.set_policy(&POLICY_LICENSED_PHARMACIST, &true, &ONE_YEAR);
     client.set_approved_issuer(&POLICY_ACCREDITED_INVESTOR, &issuer_a(env), &true);
@@ -149,29 +153,27 @@ fn hex_to_array<const N: usize>(s: &str) -> [u8; N] {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[test]
-fn test_initialize_sets_admin_and_blocks_double_initialize() {
+fn test_constructor_sets_admin_atomically_and_allows_vkey_rotation() {
     let env = Env::default();
     env.mock_all_auths();
     set_ledger_time(&env, BASE_TIME);
 
-    let (_, client) = create_contract(&env);
     let admin = Address::generate(&env);
-    client.initialize(&admin, &dummy_vk(&env), &dummy_program_vkey(&env));
+    let (_, client) = create_contract(&env, &admin, dummy_vk(&env), dummy_program_vkey(&env));
     assert_eq!(client.admin(), Some(admin.clone()));
 
-    let attacker = Address::generate(&env);
-    let res = client.try_initialize(&attacker, &dummy_vk(&env), &dummy_program_vkey(&env));
-    assert_zk_error(res, ZkGateError::AlreadyInitialized);
+    let new_vkey = BytesN::from_array(&env, &[0x99u8; 32]);
+    client.update_program_vkey(&new_vkey);
     assert_eq!(client.admin(), Some(admin));
 }
 
 #[test]
-fn test_initialize_rejects_malformed_vk_ic_len() {
+#[should_panic(expected = "Error(Contract, #0)")]
+fn test_constructor_rejects_malformed_vk_ic_len() {
     let env = Env::default();
     env.mock_all_auths();
     set_ledger_time(&env, BASE_TIME);
 
-    let (_, client) = create_contract(&env);
     let bad_ic: Vec<Bn254G1Affine> =
         Vec::from_array::<2>(&env, core::array::from_fn(|_| dummy_g1(&env)));
     let bad_vk = VerificationKey {
@@ -182,8 +184,8 @@ fn test_initialize_rejects_malformed_vk_ic_len() {
         ic: bad_ic,
     };
 
-    let res = client.try_initialize(&Address::generate(&env), &bad_vk, &dummy_program_vkey(&env));
-    assert_zk_error(res, ZkGateError::MalformedVerifyingKey);
+    let admin = Address::generate(&env);
+    let _ = create_contract(&env, &admin, bad_vk, dummy_program_vkey(&env));
 }
 
 #[test]
@@ -196,25 +198,57 @@ fn test_is_authorized_unknown_wallet_returns_false() {
 }
 
 #[test]
-fn test_verify_without_init_returns_not_initialized() {
+fn test_revocation_sticks_against_fresh_proof_until_admin_reinstates() {
     let env = Env::default();
-    env.mock_all_auths();
-    set_ledger_time(&env, BASE_TIME);
-
-    let (_, client) = create_contract(&env);
+    let (contract_id, client, _) = setup_initialized_gate(&env);
     let investor = Address::generate(&env);
-    let inputs = make_inputs(
+
+    // Seed an active ACCREDITED_INVESTOR pass and revoke it.
+    env.as_contract(&contract_id, || {
+        env.storage().persistent().set(
+            &DataKey::Credential(investor.clone(), POLICY_ACCREDITED_INVESTOR),
+            &Credential {
+                verified_at: BASE_TIME,
+                doc_timestamp: BASE_TIME - 86_400,
+                expires_at: BASE_TIME - 86_400 + ONE_YEAR,
+                issuer_hash: issuer_a(&env),
+                nullifier: BytesN::from_array(&env, &[0x55u8; 32]),
+                revoked: false,
+            },
+        );
+    });
+    assert!(client.is_authorized(&investor, &POLICY_ACCREDITED_INVESTOR));
+
+    client.revoke_credential(&investor, &POLICY_ACCREDITED_INVESTOR, &None);
+    assert!(!client.is_authorized(&investor, &POLICY_ACCREDITED_INVESTOR));
+    assert!(client.is_revoked(&investor, &POLICY_ACCREDITED_INVESTOR));
+
+    // Submitting a brand-new proof with a FRESH nullifier for the revoked policy MUST be blocked!
+    let fresh_inputs = make_inputs(
         &env,
         &client,
         &investor,
         POLICY_ACCREDITED_INVESTOR,
         issuer_a(&env),
-        1,
-        BASE_TIME - 86_400,
+        0x56,
+        BASE_TIME - 3600,
     );
+    let res = client.try_verify_and_authorize(&dummy_proof(&env), &fresh_inputs, &investor, &None);
+    assert_zk_error(res, ZkGateError::CredentialRevoked);
 
-    let res = client.try_verify_and_authorize(&dummy_proof(&env), &inputs, &investor, &None);
-    assert_zk_error(res, ZkGateError::ContractNotInitialized);
+    // Revocation is policy-scoped: LICENSED_PHARMACIST is NOT revoked on this wallet.
+    assert!(!client.is_revoked(&investor, &POLICY_LICENSED_PHARMACIST));
+
+    // Admin lifts revocation hold via `reinstate_credential`:
+    // - Hold is cleared, old revoked pass is NOT automatically resurrected,
+    // - Submitting a fresh unused proof now succeeds and restores authorization.
+    client.reinstate_credential(&investor, &POLICY_ACCREDITED_INVESTOR);
+    assert!(!client.is_revoked(&investor, &POLICY_ACCREDITED_INVESTOR));
+    assert!(!client.is_authorized(&investor, &POLICY_ACCREDITED_INVESTOR));
+
+    client.verify_and_authorize(&dummy_proof(&env), &fresh_inputs, &investor, &None);
+    assert!(client.is_authorized(&investor, &POLICY_ACCREDITED_INVESTOR));
+    assert!(client.is_nullifier_used(&fresh_inputs.nullifier));
 }
 
 #[test]
@@ -494,7 +528,8 @@ fn test_g_account_address_xdr_matches_canonical_44_byte_layout() {
     assert_eq!(actual, expected);
 
     // Also verify `compute_wallet_hash` matches sha256(expected)
-    let (_, client) = create_contract(&env);
+    let admin = Address::generate(&env);
+    let (_, client) = create_contract(&env, &admin, dummy_vk(&env), dummy_program_vkey(&env));
     let expected_hash: BytesN<32> = env.crypto().sha256(&Bytes::from_slice(&env, &expected)).into();
     assert_eq!(client.compute_wallet_hash(&g_addr), expected_hash);
 }
