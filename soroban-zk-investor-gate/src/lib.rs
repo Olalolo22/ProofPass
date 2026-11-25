@@ -46,6 +46,7 @@ pub enum ZkGateError {
     AssetNotRegistered = 12,
     CredentialRevoked = 13,
     NotAuthorized = 14,
+    AssetAlreadyAssigned = 15,
 }
 
 /// Typed storage keys — prevents storage collisions between entities.
@@ -59,6 +60,7 @@ pub enum DataKey {
     ApprovedIssuer(u32, BytesN<32>),
     PolicyAsset(u32, Address),
     PolicyAssets(u32),
+    AssetOwnerPolicy(Address),
     Nullifier(BytesN<32>),
     Credential(Address, u32),
     Revoked(Address, u32),
@@ -249,6 +251,7 @@ impl ZkInvestorGate {
         }
 
         let key = DataKey::PolicyAsset(policy_id, asset.clone());
+        let owner_key = DataKey::AssetOwnerPolicy(asset.clone());
         let list_key = DataKey::PolicyAssets(policy_id);
         let mut assets: Vec<Address> = env
             .storage()
@@ -257,6 +260,13 @@ impl ZkInvestorGate {
             .unwrap_or_else(|| Vec::new(&env));
 
         if enabled {
+            if let Some(existing_policy) = env.storage().persistent().get::<_, u32>(&owner_key) {
+                if existing_policy != policy_id {
+                    panic_with_error!(&env, ZkGateError::AssetAlreadyAssigned);
+                }
+            }
+            env.storage().persistent().set(&owner_key, &policy_id);
+            Self::bump_persistent(&env, &owner_key);
             env.storage().persistent().set(&key, &true);
             Self::bump_persistent(&env, &key);
             if !assets.iter().any(|a| a == asset) {
@@ -264,6 +274,9 @@ impl ZkInvestorGate {
             }
         } else {
             env.storage().persistent().remove(&key);
+            if env.storage().persistent().get::<_, u32>(&owner_key) == Some(policy_id) {
+                env.storage().persistent().remove(&owner_key);
+            }
             let mut filtered = Vec::new(&env);
             for existing in assets.iter() {
                 if existing != asset {
@@ -602,8 +615,11 @@ impl ZkInvestorGate {
         let mut count = 0u32;
         for asset in assets.iter() {
             let sac_client = soroban_sdk::token::StellarAssetClient::new(env, &asset);
-            if sac_client.authorized(investor) {
-                sac_client.set_authorized(investor, &false);
+            // Use `try_*` so real Stellar G-accounts with a missing or closed trustline
+            // (`ContractError::TrustlineMissingError`) never revert revocation or expiry sync.
+            if matches!(sac_client.try_authorized(investor), Ok(Ok(true)))
+                && matches!(sac_client.try_set_authorized(investor, &false), Ok(Ok(())))
+            {
                 count += 1;
             }
         }

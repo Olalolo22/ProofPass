@@ -636,6 +636,72 @@ fn test_permissionless_sync_authorization_deauthorizes_after_expiry() {
     );
 }
 
+#[test]
+fn test_revoke_and_sync_succeed_for_real_g_account_without_trustlines() {
+    let env = Env::default();
+    let (contract_id, client, _) = setup_initialized_gate(&env);
+
+    // Real Stellar G-account StrKey (`ScAddress::Account`, NOT a contract address).
+    // Unlike contract addresses, calling `sac.authorized(g_account)` on a real G-account with no
+    // trustline throws `ContractError::TrustlineMissingError`.
+    let g_account = Address::from_string(&SorobanString::from_str(
+        &env,
+        "GDK6H34QWHRT6UBIFZU7VWAYYFJHUBCMMNAONVBELKBSWCM57XM3Q62P",
+    ));
+
+    let (stbill_addr, stbill_client) = deploy_gated_sac(&env, &contract_id);
+    let (syield_addr, syield_client) = deploy_gated_sac(&env, &contract_id);
+    client.set_policy_asset(&POLICY_ACCREDITED_INVESTOR, &stbill_addr, &true);
+    client.set_policy_asset(&POLICY_ACCREDITED_INVESTOR, &syield_addr, &true);
+
+    // Confirm this test genuinely hits the missing-trustline error path on real G-accounts
+    assert!(
+        stbill_client.try_authorized(&g_account).is_err(),
+        "real G-account without a trustline must return TrustlineMissingError from SAC"
+    );
+    assert!(syield_client.try_authorized(&g_account).is_err());
+
+    // Verify g_account without authorizing any trustline, then revoke and sync -> MUST NOT revert!
+    let inputs = make_inputs(
+        &env,
+        &client,
+        &g_account,
+        POLICY_ACCREDITED_INVESTOR,
+        issuer_a(&env),
+        0x91,
+        BASE_TIME - 86_400,
+    );
+    client.verify_and_authorize(&dummy_proof(&env), &inputs, &g_account, &None);
+    assert!(client.is_authorized(&g_account, &POLICY_ACCREDITED_INVESTOR));
+
+    client.revoke_credential(&g_account, &POLICY_ACCREDITED_INVESTOR);
+    assert!(!client.is_authorized(&g_account, &POLICY_ACCREDITED_INVESTOR));
+    assert!(client.is_revoked(&g_account, &POLICY_ACCREDITED_INVESTOR));
+    assert_eq!(
+        client.sync_authorization(&g_account, &POLICY_ACCREDITED_INVESTOR),
+        0
+    );
+}
+
+#[test]
+fn test_asset_cannot_be_shared_across_policies() {
+    let env = Env::default();
+    let (contract_id, client, _) = setup_initialized_gate(&env);
+    let (shared_asset, _) = deploy_gated_sac(&env, &contract_id);
+
+    client.set_policy_asset(&POLICY_ACCREDITED_INVESTOR, &shared_asset, &true);
+
+    // Registering the same asset under Policy 2 MUST fail with AssetAlreadyAssigned
+    let res = client.try_set_policy_asset(&POLICY_LICENSED_PHARMACIST, &shared_asset, &true);
+    assert_zk_error(res, ZkGateError::AssetAlreadyAssigned);
+
+    // After unregistering from Policy 1, reassignment to Policy 2 succeeds cleanly
+    client.set_policy_asset(&POLICY_ACCREDITED_INVESTOR, &shared_asset, &false);
+    client.set_policy_asset(&POLICY_LICENSED_PHARMACIST, &shared_asset, &true);
+    assert_eq!(client.get_policy_assets(&POLICY_ACCREDITED_INVESTOR).len(), 0);
+    assert_eq!(client.get_policy_assets(&POLICY_LICENSED_PHARMACIST).len(), 1);
+}
+
 /// Verifies that the canonical 108-byte SP1 v2 commitment layout produces deterministic,
 /// field-masked digests (top 3 bits zeroed for BN254 Fr compatibility).
 #[test]
