@@ -1,21 +1,31 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype,
+    contract, contracterror, contractevent, contractimpl, contracttype,
     crypto::bn254::{Bn254G1Affine, Bn254G2Affine, Fr},
-    panic_with_error, vec, Address, Bytes, BytesN, Env, Vec,
+    panic_with_error, vec,
+    xdr::ToXdr,
+    Address, Bytes, BytesN, Env, Vec,
 };
 
-/// Storage keys
-const VERIFICATION_KEY: &str = "VK";
-const PROGRAM_VKEY_HASH: &str = "PVK";
-
-/// SP1 v6 circuit vk_root constant
+/// SP1 v6 circuit vk_root constant (fixed per SP1 v6 Groth16 verifier)
 const SP1_V6_VK_ROOT: [u8; 32] = [
-    0x00, 0x2f, 0x85, 0x0e, 0xe9, 0x98, 0x97, 0x4d, 0x6c, 0xc0, 0x0e, 0x50, 0xcd, 0x08,
-    0x14, 0xb0, 0x98, 0xc0, 0x5b, 0xfa, 0xde, 0x46, 0x6d, 0x28, 0x57, 0x32, 0x40, 0xd0,
-    0x57, 0xf2, 0x53, 0x52,
+    0x00, 0x2f, 0x85, 0x0e, 0xe9, 0x98, 0x97, 0x4d, 0x6c, 0xc0, 0x0e, 0x50, 0xcd, 0x08, 0x14, 0xb0,
+    0x98, 0xc0, 0x5b, 0xfa, 0xde, 0x46, 0x6d, 0x28, 0x57, 0x32, 0x40, 0xd0, 0x57, 0xf2, 0x53, 0x52,
 ];
+
+/// Default maximum clock skew allowed for signed document timestamps (5 minutes)
+const MAX_FUTURE_SKEW_SECS: u64 = 300;
+
+/// Persistent & instance storage TTL parameters (ledgers)
+const PERSISTENT_TTL_THRESHOLD: u32 = 100_000;
+const PERSISTENT_TTL_EXTEND_TO: u32 = 1_000_000;
+const INSTANCE_TTL_THRESHOLD: u32 = 50_000;
+const INSTANCE_TTL_EXTEND_TO: u32 = 500_000;
+
+/// Well-known policy IDs used by ProofPass
+pub const POLICY_ACCREDITED_INVESTOR: u32 = 1;
+pub const POLICY_LICENSED_PHARMACIST: u32 = 2;
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -23,14 +33,40 @@ const SP1_V6_VK_ROOT: [u8; 32] = [
 pub enum ZkGateError {
     MalformedVerifyingKey = 0,
     NullifierAlreadyUsed = 1,
-    ProofTimestampExpired = 2,
+    DocumentExpired = 2,
     InvalidZKProof = 3,
     ContractNotInitialized = 4,
     CredentialExpired = 5,
+    AlreadyInitialized = 6,
+    PolicyNotFound = 7,
+    PolicyInactive = 8,
+    IssuerNotApproved = 9,
+    WalletMismatch = 10,
+    InvalidDocumentTimestamp = 11,
+    AssetNotRegistered = 12,
+    CredentialRevoked = 13,
+    NotAuthorized = 14,
+    AssetAlreadyAssigned = 15,
 }
 
-/// Groth16 proof points using Soroban BN254 types (high-level API).
-/// This is the form expected after host encoding/normalization.
+/// Typed storage keys — prevents storage collisions between entities.
+#[derive(Clone)]
+#[contracttype]
+pub enum DataKey {
+    Admin,
+    VerificationKey,
+    ProgramVkeyHash,
+    Policy(u32),
+    ApprovedIssuer(u32, BytesN<32>),
+    PolicyAsset(u32, Address),
+    PolicyAssets(u32),
+    AssetOwnerPolicy(Address),
+    Nullifier(BytesN<32>),
+    Credential(Address, u32),
+    Revoked(Address, u32),
+}
+
+/// Groth16 proof points using Soroban BN254 types.
 #[derive(Clone)]
 #[contracttype]
 pub struct Groth16Proof {
@@ -39,17 +75,23 @@ pub struct Groth16Proof {
     pub c: Bn254G1Affine,
 }
 
-/// Public inputs committed by the SP1 program (revealed by the proof).
+/// Canonical public inputs committed by the SP1 v2 guest program (108 bytes total):
+///   [0..32]    wallet_hash   : sha256(investor.to_xdr())
+///   [32..36]   policy_id     : u32 LE
+///   [36..68]   issuer_hash   : sha256(signer_leaf_cert_der)
+///   [68..100]  nullifier     : sha256(signer_info_rsa_signature)
+///   [100..108] doc_timestamp : u64 LE (Unix seconds from signed PKCS#7 signingTime)
 #[derive(Clone)]
 #[contracttype]
 pub struct PublicInputs {
-    pub investor_wallet: BytesN<32>,
+    pub wallet_hash: BytesN<32>,
+    pub policy_id: u32,
+    pub issuer_hash: BytesN<32>,
     pub nullifier: BytesN<32>,
-    pub timestamp: u64,
+    pub doc_timestamp: u64,
 }
 
 /// Verification key for SP1's Groth16 BN254 wrapper (fixed per SP1 version).
-/// Populated at init or via build.rs include! (recommended for immutability, per Nethermind).
 #[derive(Clone)]
 #[contracttype]
 pub struct VerificationKey {
@@ -57,16 +99,65 @@ pub struct VerificationKey {
     pub beta: Bn254G2Affine,
     pub gamma: Bn254G2Affine,
     pub delta: Bn254G2Affine,
-    pub ic: Vec<Bn254G1Affine>, // 1 + number of groth16 public signals (SP1 Groth16 typically uses 2 signals)
+    /// 1 + number of Groth16 public signals (3 for SP1 v5, 6 for SP1 v6)
+    pub ic: Vec<Bn254G1Affine>,
 }
 
-/// Stored credential (5 year validity).
-#[derive(Clone)]
+/// Per-policy configuration governing validity window and status.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct PolicyConfig {
+    pub active: bool,
+    /// Pass lifetime anchored to the signed document's `doc_timestamp` (e.g. 365 days).
+    pub validity_secs: u64,
+}
+
+/// Privacy-minimized per-(wallet, policy_id) credential pass stored on-chain.
+/// Deliberately omits `issuer_hash`, `doc_timestamp`, and `nullifier` from public contract state
+/// so only the minimum compliance status (`expires_at`, `revoked`) is persisted.
+#[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
 pub struct Credential {
-    pub verified_at: u64,
     pub expires_at: u64,
-    pub nullifier: BytesN<32>,
+    pub revoked: bool,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CredentialVerified {
+    #[topic]
+    pub investor: Address,
+    #[topic]
+    pub policy_id: u32,
+    pub expires_at: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CredentialRevoked {
+    #[topic]
+    pub investor: Address,
+    #[topic]
+    pub policy_id: u32,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CredentialReinstated {
+    #[topic]
+    pub investor: Address,
+    #[topic]
+    pub policy_id: u32,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuthorizationSynced {
+    #[topic]
+    pub investor: Address,
+    #[topic]
+    pub policy_id: u32,
+    pub assets_deauthorized: u32,
 }
 
 #[contract]
@@ -74,104 +165,493 @@ pub struct ZkInvestorGate;
 
 #[contractimpl]
 impl ZkInvestorGate {
-    /// Initialize with the SP1 Groth16 verification key (alpha/beta/gamma/delta/ic)
-    /// and the specific SP1 program vkey hash for this accredited-investor circuit.
-    /// Call once after deploy.
-    pub fn initialize(env: Env, vk: VerificationKey, program_vkey_hash: BytesN<32>) {
-        env.storage().instance().set(&VERIFICATION_KEY, &vk);
-        env.storage().instance().set(&PROGRAM_VKEY_HASH, &program_vkey_hash);
+    /// Atomic deploy-time constructor (Soroban Protocol 22+ / SDK 25).
+    /// Eliminates initialize front-running by locking admin, Groth16 VK, and SP1 program
+    /// vkey hash inside the contract creation transaction itself.
+    pub fn __constructor(
+        env: Env,
+        admin: Address,
+        vk: VerificationKey,
+        program_vkey_hash: BytesN<32>,
+    ) {
+        let ic_len = vk.ic.len();
+        if ic_len != 3 && ic_len != 6 {
+            panic_with_error!(&env, ZkGateError::MalformedVerifyingKey);
+        }
+
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::VerificationKey, &vk);
+        env.storage()
+            .instance()
+            .set(&DataKey::ProgramVkeyHash, &program_vkey_hash);
+        Self::bump_instance(&env);
     }
 
-    /// Verify ZK proof (SP1 Groth16 over BN254), check freshness + uniqueness,
-    /// store nullifier/credential, and authorize the investor via the RWA SAC.
-    ///
-    /// The `investor` Address is the authenticated account submitting the tx (used for SAC set_authorized).
-    /// The public_inputs.investor_wallet (32B pubkey) must match the investor's underlying key for the committed proof.
+    /// Admin-only: rotate the SP1 program vkey hash (e.g., when upgrading the guest circuit).
+    pub fn update_program_vkey(env: Env, program_vkey_hash: BytesN<32>) {
+        let admin = Self::require_admin(&env);
+        admin.require_auth();
+        env.storage()
+            .instance()
+            .set(&DataKey::ProgramVkeyHash, &program_vkey_hash);
+        Self::bump_instance(&env);
+    }
+
+    /// Admin-only: create or update a credential policy (e.g., `1 = ACCREDITED_INVESTOR`,
+    /// `2 = LICENSED_PHARMACIST`) with its document-anchored validity window.
+    pub fn set_policy(env: Env, policy_id: u32, active: bool, validity_secs: u64) {
+        let admin = Self::require_admin(&env);
+        admin.require_auth();
+
+        let cfg = PolicyConfig {
+            active,
+            validity_secs,
+        };
+        let key = DataKey::Policy(policy_id);
+        env.storage().persistent().set(&key, &cfg);
+        Self::bump_persistent(&env, &key);
+        Self::bump_instance(&env);
+    }
+
+    /// Admin-only: allowlist or remove a signer certificate identity (`sha256(leaf_cert_der)`)
+    /// for a specific policy.
+    pub fn set_approved_issuer(
+        env: Env,
+        policy_id: u32,
+        issuer_hash: BytesN<32>,
+        approved: bool,
+    ) {
+        let admin = Self::require_admin(&env);
+        admin.require_auth();
+
+        if !env.storage().persistent().has(&DataKey::Policy(policy_id)) {
+            panic_with_error!(&env, ZkGateError::PolicyNotFound);
+        }
+
+        let key = DataKey::ApprovedIssuer(policy_id, issuer_hash);
+        if approved {
+            env.storage().persistent().set(&key, &true);
+            Self::bump_persistent(&env, &key);
+        } else {
+            env.storage().persistent().remove(&key);
+        }
+        Self::bump_instance(&env);
+    }
+
+    /// Admin-only: register or remove an `AUTH_REQUIRED` Stellar Asset Contract (SAC)
+    /// that `policy_id` is authorized to toggle via `set_authorized`.
+    /// Maintains both an O(1) lookup key and the per-policy asset list used by
+    /// `revoke_credential` and `sync_authorization`.
+    pub fn set_policy_asset(env: Env, policy_id: u32, asset: Address, enabled: bool) {
+        let admin = Self::require_admin(&env);
+        admin.require_auth();
+
+        if !env.storage().persistent().has(&DataKey::Policy(policy_id)) {
+            panic_with_error!(&env, ZkGateError::PolicyNotFound);
+        }
+
+        let key = DataKey::PolicyAsset(policy_id, asset.clone());
+        let owner_key = DataKey::AssetOwnerPolicy(asset.clone());
+        let list_key = DataKey::PolicyAssets(policy_id);
+        let mut assets: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&list_key)
+            .unwrap_or_else(|| Vec::new(&env));
+
+        if enabled {
+            if let Some(existing_policy) = env.storage().persistent().get::<_, u32>(&owner_key) {
+                if existing_policy != policy_id {
+                    panic_with_error!(&env, ZkGateError::AssetAlreadyAssigned);
+                }
+            }
+            env.storage().persistent().set(&owner_key, &policy_id);
+            Self::bump_persistent(&env, &owner_key);
+            env.storage().persistent().set(&key, &true);
+            Self::bump_persistent(&env, &key);
+            if !assets.iter().any(|a| a == asset) {
+                assets.push_back(asset);
+            }
+        } else {
+            env.storage().persistent().remove(&key);
+            if env.storage().persistent().get::<_, u32>(&owner_key) == Some(policy_id) {
+                env.storage().persistent().remove(&owner_key);
+            }
+            let mut filtered = Vec::new(&env);
+            for existing in assets.iter() {
+                if existing != asset {
+                    filtered.push_back(existing);
+                }
+            }
+            assets = filtered;
+        }
+
+        env.storage().persistent().set(&list_key, &assets);
+        Self::bump_persistent(&env, &list_key);
+        Self::bump_instance(&env);
+    }
+
+    /// Verify an SP1 Groth16 BN254 proof for `(investor, policy_id)`, enforce wallet binding,
+    /// approved issuer allowlist, nullifier uniqueness, and document-date-anchored expiry,
+    /// then persist the Pass and optionally flip `AUTH_REQUIRED` trustline authorization on
+    /// a registered policy SAC.
     pub fn verify_and_authorize(
         env: Env,
         proof: Groth16Proof,
         public_inputs: PublicInputs,
         investor: Address,
-        rwa_asset_contract: Address,
+        rwa_asset_contract: Option<Address>,
     ) {
-        // 1. Nullifier not used
-        let nullifier_key = Self::nullifier_key(&public_inputs.nullifier);
-        if env.storage().persistent().has(&nullifier_key) {
-            panic_with_error!(&env, ZkGateError::NullifierAlreadyUsed);
-        }
+        // 1. Authenticate submitting investor so proofs cannot be front-run by another address.
+        investor.require_auth();
 
-        // 2. Timestamp recency (90 days)
-        let current_time = env.ledger().timestamp();
-        let ninety_days: u64 = 90 * 24 * 60 * 60;
-        if current_time - public_inputs.timestamp > ninety_days {
-            panic_with_error!(&env, ZkGateError::ProofTimestampExpired);
-        }
-
-        // 3. Load VKs
+        // 2. Load verification keys (ensures contract is initialized).
         let vk: VerificationKey = env
             .storage()
             .instance()
-            .get(&VERIFICATION_KEY)
+            .get(&DataKey::VerificationKey)
             .unwrap_or_else(|| panic_with_error!(&env, ZkGateError::ContractNotInitialized));
         let program_vkey: BytesN<32> = env
             .storage()
             .instance()
-            .get(&PROGRAM_VKEY_HASH)
+            .get(&DataKey::ProgramVkeyHash)
             .unwrap_or_else(|| panic_with_error!(&env, ZkGateError::ContractNotInitialized));
 
-        // 4. Verify the SP1 Groth16 proof using Protocol 26 BN254 host functions.
-        // SP1 Groth16 public signals are 2 field elements:
-        //   [ sp1_program_vkey_hash (truncated/padded), committed_values_digest ]
-        // We reconstruct the digest from the provided public_inputs (wallet || nullifier || ts bytes).
-        let valid = Self::verify_sp1_groth16(&env, &proof, &public_inputs, &vk, &program_vkey);
-        if !valid {
+        // 3. Enforce proof-to-wallet binding: sha256(investor.to_xdr()) == public_inputs.wallet_hash
+        let expected_wallet_hash = Self::hash_address(&env, &investor);
+        if public_inputs.wallet_hash != expected_wallet_hash {
+            panic_with_error!(&env, ZkGateError::WalletMismatch);
+        }
+
+        // 4. Reject if this (investor, policy_id) is currently revoked (revocation sticks until
+        //    an admin explicitly reinstates via `reinstate_credential`).
+        let revoked_key = DataKey::Revoked(investor.clone(), public_inputs.policy_id);
+        if env
+            .storage()
+            .persistent()
+            .get::<_, bool>(&revoked_key)
+            .unwrap_or(false)
+        {
+            panic_with_error!(&env, ZkGateError::CredentialRevoked);
+        }
+
+        // 5. Validate policy exists and is active.
+        let policy_key = DataKey::Policy(public_inputs.policy_id);
+        let policy: PolicyConfig = env
+            .storage()
+            .persistent()
+            .get(&policy_key)
+            .unwrap_or_else(|| panic_with_error!(&env, ZkGateError::PolicyNotFound));
+        if !policy.active {
+            panic_with_error!(&env, ZkGateError::PolicyInactive);
+        }
+
+        // 6. Validate signer identity is on the approved issuer allowlist for this policy.
+        let issuer_key = DataKey::ApprovedIssuer(
+            public_inputs.policy_id,
+            public_inputs.issuer_hash.clone(),
+        );
+        let issuer_ok: bool = env
+            .storage()
+            .persistent()
+            .get(&issuer_key)
+            .unwrap_or(false);
+        if !issuer_ok {
+            panic_with_error!(&env, ZkGateError::IssuerNotApproved);
+        }
+
+        // 7. If a gated SAC is requested, verify it is registered under this policy_id.
+        if let Some(ref asset) = rwa_asset_contract {
+            let asset_key = DataKey::PolicyAsset(public_inputs.policy_id, asset.clone());
+            let asset_ok: bool = env.storage().persistent().get(&asset_key).unwrap_or(false);
+            if !asset_ok {
+                panic_with_error!(&env, ZkGateError::AssetNotRegistered);
+            }
+        }
+
+        // 8. Replay protection: nullifier must not have been consumed before.
+        let nullifier_key = DataKey::Nullifier(public_inputs.nullifier.clone());
+        if env.storage().persistent().has(&nullifier_key) {
+            panic_with_error!(&env, ZkGateError::NullifierAlreadyUsed);
+        }
+
+        // 9. Document-date-anchored freshness & expiry against Stellar ledger time.
+        //    No underflow on future skew; expiry = doc_timestamp + policy.validity_secs.
+        let current_time = env.ledger().timestamp();
+        if public_inputs.doc_timestamp > current_time.saturating_add(MAX_FUTURE_SKEW_SECS) {
+            panic_with_error!(&env, ZkGateError::InvalidDocumentTimestamp);
+        }
+        let expires_at = public_inputs
+            .doc_timestamp
+            .saturating_add(policy.validity_secs);
+        if current_time >= expires_at {
+            panic_with_error!(&env, ZkGateError::DocumentExpired);
+        }
+
+        // 10. Verify the SP1 Groth16 BN254 proof using Protocol 26 native pairing host functions.
+        if !Self::verify_sp1_groth16(&env, &proof, &public_inputs, &vk, &program_vkey) {
             panic_with_error!(&env, ZkGateError::InvalidZKProof);
         }
 
-        // 5. Store nullifier (persistent)
+        // 11. Persist nullifier and extend TTL.
         env.storage().persistent().set(&nullifier_key, &true);
-        // Extend TTL (critical — Persistent entries expire otherwise)
-        env.storage()
-            .persistent()
-            .extend_ttl(&nullifier_key, 100_000, 1_000_000); // example ledgers; tune for production
+        Self::bump_persistent(&env, &nullifier_key);
 
-        // 6. Store credential (5 years)
-        let five_years: u64 = 5 * 365 * 24 * 60 * 60;
+        // 12. Persist privacy-minimized per-(investor, policy_id) credential pass and extend TTL.
         let credential = Credential {
-            verified_at: current_time,
-            expires_at: current_time + five_years,
-            nullifier: public_inputs.nullifier.clone(),
+            expires_at,
+            revoked: false,
         };
-        let credential_key = Self::credential_key(&public_inputs.investor_wallet);
+        let credential_key = DataKey::Credential(investor.clone(), public_inputs.policy_id);
         env.storage().persistent().set(&credential_key, &credential);
-        env.storage()
-            .persistent()
-            .extend_ttl(&credential_key, 100_000, 1_000_000);
+        Self::bump_persistent(&env, &credential_key);
+        Self::bump_instance(&env);
 
-        // 7. Authorize via Stellar Asset Contract (SAC)
-        // Use the passed `investor` Address (the tx submitter). In real flow the ZK proof
-        // commits the 32B pubkey; a full impl would convert or assert the investor's
-        // underlying account pubkey bytes match public_inputs.investor_wallet.
-        // The SAC call may require the contract to be authorized by the asset issuer.
-        let sac_client = soroban_sdk::token::StellarAssetClient::new(&env, &rwa_asset_contract);
-        sac_client.set_authorized(&investor, &true);
+        // 13. Authorize trustline on the registered Stellar Asset Contract (if provided).
+        if let Some(asset) = rwa_asset_contract {
+            let sac_client = soroban_sdk::token::StellarAssetClient::new(&env, &asset);
+            sac_client.set_authorized(&investor, &true);
+        }
+
+        // 14. Emit privacy-minimized structured verification event.
+        CredentialVerified {
+            investor,
+            policy_id: public_inputs.policy_id,
+            expires_at,
+        }
+        .publish(&env);
     }
 
-    /// Check if investor has valid non-expired credential.
-    /// Takes the raw 32B wallet pubkey (as committed in the ZK proof) for lookup.
-    pub fn is_authorized(env: Env, wallet: BytesN<32>) -> bool {
-        let credential_key = Self::credential_key(&wallet);
+    /// Authorize an additional registered `AUTH_REQUIRED` SAC trustline for an investor who
+    /// already holds a valid, non-revoked, non-expired Pass for `policy_id` (enabling one Pass
+    /// to unlock multiple regulated assets without generating a second ZK proof).
+    pub fn authorize_asset(env: Env, investor: Address, policy_id: u32, asset: Address) {
+        investor.require_auth();
 
+        if !Self::is_authorized(env.clone(), investor.clone(), policy_id) {
+            panic_with_error!(&env, ZkGateError::NotAuthorized);
+        }
+
+        let asset_key = DataKey::PolicyAsset(policy_id, asset.clone());
+        if !env.storage().persistent().get(&asset_key).unwrap_or(false) {
+            panic_with_error!(&env, ZkGateError::AssetNotRegistered);
+        }
+
+        let sac_client = soroban_sdk::token::StellarAssetClient::new(&env, &asset);
+        sac_client.set_authorized(&investor, &true);
+        Self::bump_instance(&env);
+    }
+
+    /// Admin-only: immediately revoke a wallet's Pass for `policy_id` and automatically
+    /// de-authorize its trustlines across ALL registered `AUTH_REVOCABLE` SACs for `policy_id`.
+    /// Revocation persists under `DataKey::Revoked(investor, policy_id)` so the wallet cannot
+    /// self-unban with another proof until an admin calls `reinstate_credential`.
+    pub fn revoke_credential(env: Env, investor: Address, policy_id: u32) {
+        let admin = Self::require_admin(&env);
+        admin.require_auth();
+
+        let revoked_key = DataKey::Revoked(investor.clone(), policy_id);
+        env.storage().persistent().set(&revoked_key, &true);
+        Self::bump_persistent(&env, &revoked_key);
+
+        let credential_key = DataKey::Credential(investor.clone(), policy_id);
+        if let Some(mut cred) = env
+            .storage()
+            .persistent()
+            .get::<_, Credential>(&credential_key)
+        {
+            cred.revoked = true;
+            env.storage().persistent().set(&credential_key, &cred);
+            Self::bump_persistent(&env, &credential_key);
+        }
+
+        Self::deauthorize_policy_assets(&env, &investor, policy_id);
+
+        Self::bump_instance(&env);
+        CredentialRevoked {
+            investor,
+            policy_id,
+        }
+        .publish(&env);
+    }
+
+    /// Permissionless sync: anyone (keeper, market contract, or user) can call this to sweep and
+    /// de-authorize all registered `AUTH_REVOCABLE` SAC trustlines for `(investor, policy_id)`
+    /// once the Pass has expired or been revoked. Does nothing and returns `0` if the Pass is
+    /// currently valid.
+    pub fn sync_authorization(env: Env, investor: Address, policy_id: u32) -> u32 {
+        if Self::is_authorized(env.clone(), investor.clone(), policy_id) {
+            return 0;
+        }
+        let count = Self::deauthorize_policy_assets(&env, &investor, policy_id);
+        if count > 0 {
+            Self::bump_instance(&env);
+            AuthorizationSynced {
+                investor,
+                policy_id,
+                assets_deauthorized: count,
+            }
+            .publish(&env);
+        }
+        count
+    }
+
+    /// Admin-only: lift a revocation hold on `(investor, policy_id)` so the wallet may submit a
+    /// fresh, unused ZK proof to obtain a new Pass. Does NOT automatically re-enable the old
+    /// revoked credential.
+    pub fn reinstate_credential(env: Env, investor: Address, policy_id: u32) {
+        let admin = Self::require_admin(&env);
+        admin.require_auth();
+
+        let revoked_key = DataKey::Revoked(investor.clone(), policy_id);
+        env.storage().persistent().remove(&revoked_key);
+
+        let credential_key = DataKey::Credential(investor.clone(), policy_id);
+        if let Some(cred) = env
+            .storage()
+            .persistent()
+            .get::<_, Credential>(&credential_key)
+        {
+            if cred.revoked {
+                env.storage().persistent().remove(&credential_key);
+            }
+        }
+
+        Self::bump_instance(&env);
+        CredentialReinstated {
+            investor,
+            policy_id,
+        }
+        .publish(&env);
+    }
+
+    /// Check if `investor` holds a valid, non-revoked, non-expired Pass for `policy_id`.
+    /// Designed to be called cross-contract by any gated Soroban liquidity pool, vault,
+    /// or B2B checkout contract.
+    pub fn is_authorized(env: Env, investor: Address, policy_id: u32) -> bool {
+        if env
+            .storage()
+            .persistent()
+            .get::<_, bool>(&DataKey::Revoked(investor.clone(), policy_id))
+            .unwrap_or(false)
+        {
+            return false;
+        }
+        let credential_key = DataKey::Credential(investor, policy_id);
         if let Some(credential) = env
             .storage()
             .persistent()
             .get::<_, Credential>(&credential_key)
         {
-            let current_time = env.ledger().timestamp();
-            credential.expires_at > current_time
+            !credential.revoked && credential.expires_at > env.ledger().timestamp()
         } else {
             false
         }
+    }
+
+    /// Check whether `(investor, policy_id)` is currently under an active admin revocation hold.
+    pub fn is_revoked(env: Env, investor: Address, policy_id: u32) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Revoked(investor, policy_id))
+            .unwrap_or(false)
+    }
+
+    /// Read full stored Pass metadata for `(investor, policy_id)`.
+    pub fn get_credential(env: Env, investor: Address, policy_id: u32) -> Option<Credential> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Credential(investor, policy_id))
+    }
+
+    /// Read policy configuration for `policy_id`.
+    pub fn get_policy(env: Env, policy_id: u32) -> Option<PolicyConfig> {
+        env.storage().persistent().get(&DataKey::Policy(policy_id))
+    }
+
+    /// Check whether `issuer_hash` is allowlisted under `policy_id`.
+    pub fn is_issuer_approved(env: Env, policy_id: u32, issuer_hash: BytesN<32>) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::ApprovedIssuer(policy_id, issuer_hash))
+            .unwrap_or(false)
+    }
+
+    /// Check whether a document nullifier has already been consumed.
+    pub fn is_nullifier_used(env: Env, nullifier: BytesN<32>) -> bool {
+        env.storage()
+            .persistent()
+            .has(&DataKey::Nullifier(nullifier))
+    }
+
+    /// Return all registered SAC asset addresses governed by `policy_id`.
+    pub fn get_policy_assets(env: Env, policy_id: u32) -> Vec<Address> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::PolicyAssets(policy_id))
+            .unwrap_or_else(|| Vec::new(&env))
+    }
+
+    /// Return the configured contract admin address.
+    pub fn admin(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::Admin)
+    }
+
+    /// Helper returning `sha256(investor.to_xdr())` — the exact 32-byte `wallet_hash`
+    /// the SP1 prover must commit for `investor`.
+    pub fn compute_wallet_hash(env: Env, investor: Address) -> BytesN<32> {
+        Self::hash_address(&env, &investor)
+    }
+
+    // ─── Internal Helpers ────────────────────────────────────────────────────────
+
+    fn deauthorize_policy_assets(env: &Env, investor: &Address, policy_id: u32) -> u32 {
+        let list_key = DataKey::PolicyAssets(policy_id);
+        let assets: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&list_key)
+            .unwrap_or_else(|| Vec::new(env));
+        let mut count = 0u32;
+        for asset in assets.iter() {
+            let sac_client = soroban_sdk::token::StellarAssetClient::new(env, &asset);
+            // Use `try_authorized` so real Stellar G-accounts with a missing or closed trustline
+            // (`ContractError::TrustlineMissingError`) are safely skipped. Once confirmed authorized,
+            // call `set_authorized(false)` directly so misconfigurations (e.g. lost SAC admin or
+            // missing AUTH_REVOCABLE) fail loudly rather than silently leaving a trustline live.
+            if matches!(sac_client.try_authorized(investor), Ok(Ok(true))) {
+                sac_client.set_authorized(investor, &false);
+                count += 1;
+            }
+        }
+        if !assets.is_empty() {
+            Self::bump_persistent(env, &list_key);
+        }
+        count
+    }
+
+    fn require_admin(env: &Env) -> Address {
+        env.storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic_with_error!(env, ZkGateError::ContractNotInitialized))
+    }
+
+    fn hash_address(env: &Env, address: &Address) -> BytesN<32> {
+        let xdr_bytes: Bytes = address.to_xdr(env);
+        env.crypto().sha256(&xdr_bytes).into()
+    }
+
+    fn bump_persistent(env: &Env, key: &DataKey) {
+        env.storage()
+            .persistent()
+            .extend_ttl(key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND_TO);
+    }
+
+    fn bump_instance(env: &Env) {
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_EXTEND_TO);
     }
 
     /// Core SP1 Groth16 BN254 verification (supports both SP1 v5 2-signal and v6 5-signal layouts).
@@ -183,11 +663,9 @@ impl ZkInvestorGate {
         program_vkey: &BytesN<32>,
     ) -> bool {
         let bn = env.crypto().bn254();
-
-        // Build the public signals matching SP1 Groth16 IC layout:
         let sp1_public_inputs = Self::build_sp1_public_inputs(env, inputs, program_vkey, vk.ic.len());
 
-        if sp1_public_inputs.len() + 1 != vk.ic.len() as u32 {
+        if sp1_public_inputs.len() + 1 != vk.ic.len() {
             return false;
         }
 
@@ -202,27 +680,42 @@ impl ZkInvestorGate {
         // e(-A, B) * e(alpha, beta) * e(vk_x, gamma) * e(C, delta) == 1
         let neg_a = -proof.a.clone();
         let g1_points = vec![env, neg_a, vk.alpha.clone(), vk_x, proof.c.clone()];
-        let g2_points = vec![env, proof.b.clone(), vk.beta.clone(), vk.gamma.clone(), vk.delta.clone()];
+        let g2_points = vec![
+            env,
+            proof.b.clone(),
+            vk.beta.clone(),
+            vk.gamma.clone(),
+            vk.delta.clone(),
+        ];
 
         bn.pairing_check(g1_points, g2_points)
     }
 
-    /// Reconstruct the public signals that SP1 Groth16 uses.
-    /// Handles both SP1 v5 (2 signals: vkey, digest) and SP1 v6 (5 signals: vkey, digest, exit_code, vk_root, nonce).
+    /// Reconstruct canonical SP1 Groth16 public signals from the 108-byte committed payload.
+    /// Layout matches `proofpass_core::CommittedPublicValues::to_bytes()` bit-for-bit.
+    pub(crate) fn encode_committed_values(inputs: &PublicInputs) -> [u8; 108] {
+        let mut committed = [0u8; 108];
+        committed[0..32].copy_from_slice(&inputs.wallet_hash.to_array());
+        committed[32..36].copy_from_slice(&inputs.policy_id.to_le_bytes());
+        committed[36..68].copy_from_slice(&inputs.issuer_hash.to_array());
+        committed[68..100].copy_from_slice(&inputs.nullifier.to_array());
+        committed[100..108].copy_from_slice(&inputs.doc_timestamp.to_le_bytes());
+        committed
+    }
+
     fn build_sp1_public_inputs(
         env: &Env,
         inputs: &PublicInputs,
         program_vkey: &BytesN<32>,
         ic_len: u32,
     ) -> Vec<Fr> {
-        // Serialize committed values in bincode order (wallet 32B | nullifier 32B | timestamp u64 LE)
-        let mut committed = [0u8; 32 + 32 + 8];
-        committed[0..32].copy_from_slice(&inputs.investor_wallet.to_array());
-        committed[32..64].copy_from_slice(&inputs.nullifier.to_array());
-        committed[64..72].copy_from_slice(&inputs.timestamp.to_le_bytes());
+        let committed = Self::encode_committed_values(inputs);
 
         // committed_values_digest = sha256(committed) & ((1 << 253) - 1)
-        let sha: BytesN<32> = env.crypto().sha256(&Bytes::from_slice(env, &committed)).into();
+        let sha: BytesN<32> = env
+            .crypto()
+            .sha256(&Bytes::from_slice(env, &committed))
+            .into();
         let mut digest = sha.to_array();
         digest[0] &= 0x1F;
 
@@ -233,28 +726,12 @@ impl ZkInvestorGate {
         if ic_len == 6 {
             // SP1 v6 circuit layout: [program_vkey, digest, exit_code, vk_root, nonce]
             signals.push_back(Fr::from_bytes(BytesN::from_array(env, &[0u8; 32]))); // exit_code = 0
-            signals.push_back(Fr::from_bytes(BytesN::from_array(env, &SP1_V6_VK_ROOT))); // vk_root
+            signals.push_back(Fr::from_bytes(BytesN::from_array(env, &SP1_V6_VK_ROOT)));
             signals.push_back(Fr::from_bytes(BytesN::from_array(env, &[0u8; 32]))); // nonce = 0
         }
 
         signals
     }
-
-    fn nullifier_key(nullifier: &BytesN<32>) -> BytesN<32> {
-        // Simple: for storage we can use the nullifier itself as key (BytesN<32> works).
-        // Or prefix if collisions concern. Here we return a derived for clarity.
-        // In practice: env.storage().persistent().set(nullifier, &true);
-        nullifier.clone()
-    }
-
-    fn credential_key(wallet: &BytesN<32>) -> BytesN<32> {
-        wallet.clone()
-    }
 }
-
-// Note: For a production contract, strongly consider build.rs + include_bytes! for the
-// SP1 Groth16 VK (alpha..ic) + program vkey hash, similar to Nethermind's approach,
-// making the verifier stateless/immutable after compile. The initialize above is kept
-// for flexibility per the original brief.
 
 mod test;

@@ -1,0 +1,16 @@
+[package]
+name = "proofpass-core"
+version = "0.2.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+cms = "0.2"
+x509-cert = "0.2"
+rsa = { version = "=0.9.6", default-features = false, features = ["sha2"] }
+sha2 = { version = "0.10.9", default-features = false, features = ["oid"] }
+miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+hex = "0.4"
