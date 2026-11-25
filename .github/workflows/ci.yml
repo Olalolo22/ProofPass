@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  soroban-contract:
+    name: Soroban ZkInvestorGate Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: soroban-zk-investor-gate -> target
+      - name: Check no_std contract library
+        working-directory: soroban-zk-investor-gate
+        run: cargo check --lib
+      - name: Run Soroban unit & BN254 pairing tests
+        working-directory: soroban-zk-investor-gate
+        run: cargo test
+
+  zk-verification-core:
+    name: SP1 ProofPass Core Crypto Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sp1-zk-accredited-investor -> target
+      - name: Run proofpass-core PDF / RSA / X.509 / signingTime tests
+        working-directory: sp1-zk-accredited-investor
+        run: cargo test -p proofpass-core
+      - name: Run legacy host pdf_utils tests
+        working-directory: sp1-zk-accredited-investor
+        run: cargo test -p zk-accredited-investor-script --lib
