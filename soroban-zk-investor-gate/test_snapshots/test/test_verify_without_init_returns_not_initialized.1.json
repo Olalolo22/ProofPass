@@ -1,17 +1,18 @@
 {
   "generators": {
-    "address": 3,
+    "address": 2,
     "nonce": 0,
     "mux_id": 0
   },
   "auth": [
+    [],
     [],
     []
   ],
   "ledger": {
     "protocol_version": 25,
     "sequence_number": 100,
-    "timestamp": 1750000000,
+    "timestamp": 1795000000,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
     "base_reserve": 10,
     "min_persistent_entry_ttl": 1,
