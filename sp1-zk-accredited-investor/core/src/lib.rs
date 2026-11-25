@@ -24,9 +24,11 @@ use rsa::signature::hazmat::PrehashVerifier;
 use rsa::RsaPublicKey;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256, Sha384};
-use x509_cert::der::asn1::{GeneralizedTime, OctetString, UtcTime};
+use x509_cert::der::asn1::{BitStringRef, GeneralizedTime, OctetString, UtcTime};
 use x509_cert::der::{Decode, Encode, Tag, Tagged};
+use x509_cert::ext::pkix::BasicConstraints;
 use x509_cert::spki::DecodePublicKey;
+use x509_cert::time::Time;
 use x509_cert::Certificate;
 
 pub const POLICY_ACCREDITED_INVESTOR: u32 = 1;
@@ -277,16 +279,17 @@ pub fn verify_and_extract(
         return Err(VerifyError::LeafSignatureInvalid);
     }
 
-    // 8. Verify full X.509 certificate chain to at least one compile-time embedded trusted Root CA.
-    let chain_ok = trusted_roots
-        .iter()
-        .any(|root_der| verify_cert_chain(&leaf_der, &embedded_cert_ders, root_der));
+    // 8. Verify full X.509 certificate chain (validity at doc_timestamp, CA constraints, RSA sigs)
+    //    to at least one compile-time embedded trusted Root CA.
+    let chain_ok = trusted_roots.iter().any(|root_der| {
+        verify_cert_chain(&leaf_der, &embedded_cert_ders, root_der, doc_timestamp)
+    });
     if !chain_ok {
         return Err(VerifyError::CertChainInvalid);
     }
 
     // 9. Decompress (if needed) and extract visible text from the verified signed text stream,
-    //    then enforce the policy-specific required wording.
+    //    then enforce the policy-specific required affirmative wording.
     let raw_text_slice = &pdf_bytes[text_start..text_end];
     let decompressed;
     let stream_bytes: &[u8] = if hints.text_compressed {
@@ -302,8 +305,12 @@ pub fn verify_and_extract(
         return Err(VerifyError::PolicyPhraseNotFound);
     }
 
-    // 10. Deterministic nullifier = SHA-256(trimmed CMS DER blob).
-    let nullifier: [u8; 32] = Sha256::digest(&cms_der).into();
+    // 10. Non-malleable deterministic nullifier = SHA-256(raw RSA PKCS#1 v1.5 signature bytes).
+    //     Hashing the full CMS DER blob would allow mutating unsigned CMS attributes or reordering
+    //     embedded certificates inside `/Contents` to mint a fresh nullifier from the same PDF.
+    //     Because RSA PKCS#1 v1.5 signatures are deterministic, hashing `signer_info.signature` binds
+    //     the nullifier strictly to the private-key signature over `signedAttrs`.
+    let nullifier: [u8; 32] = Sha256::digest(raw_sig).into();
 
     Ok(CommittedPublicValues {
         wallet_hash,
@@ -314,19 +321,40 @@ pub fn verify_and_extract(
     })
 }
 
-/// Checks policy-specific statutory wording in extracted PDF text.
+/// Checks policy-specific affirmative statutory wording in extracted PDF text.
+/// Whitespace is normalized so PDF line wraps and kerning gaps match cleanly, while negated
+/// statements (e.g. "does NOT have a net worth exceeding $1,000,000...") are strictly rejected.
 pub fn check_policy_phrase(text: &str, policy_id: u32) -> bool {
-    let lower = text.to_ascii_lowercase();
+    let normalized = normalize_whitespace_lower(text);
     match policy_id {
-        POLICY_ACCREDITED_INVESTOR => {
-            lower.contains("excluding the value of their primary residence")
-                && lower.contains("1,000,000")
-        }
-        POLICY_LICENSED_PHARMACIST => {
-            lower.contains("licensed pharmacist") && lower.contains("good standing")
-        }
+        POLICY_ACCREDITED_INVESTOR => normalized.contains(
+            "i confirm that the investor has an individual net worth in excess of $1,000,000, excluding the value of their primary residence",
+        ),
+        POLICY_LICENSED_PHARMACIST => normalized.contains(
+            "certifies that the bearer is a licensed pharmacist currently registered and in good standing",
+        ),
         _ => false,
     }
+}
+
+fn normalize_whitespace_lower(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut prev_space = true;
+    for ch in text.chars() {
+        if ch.is_ascii_whitespace() {
+            if !prev_space {
+                out.push(' ');
+                prev_space = true;
+            }
+        } else {
+            out.push(ch.to_ascii_lowercase());
+            prev_space = false;
+        }
+    }
+    if out.ends_with(' ') {
+        out.pop();
+    }
+    out
 }
 
 /// Decode a Stellar G-account StrKey (`G...`, 56 chars) into the exact 32-byte `wallet_hash`
@@ -588,6 +616,19 @@ fn hash_byte_range(part1: &[u8], part2: &[u8], alg: DigestAlg) -> Vec<u8> {
     }
 }
 
+fn cert_subject_key_identifier(cert: &Certificate) -> Option<Vec<u8>> {
+    let exts = cert.tbs_certificate.extensions.as_ref()?;
+    for ext in exts.iter() {
+        if ext.extn_id.to_string() == "2.5.29.14" {
+            // id-ce-subjectKeyIdentifier ::= OCTET STRING
+            if let Ok(ski) = OctetString::from_der(ext.extn_value.as_bytes()) {
+                return Some(ski.as_bytes().to_vec());
+            }
+        }
+    }
+    None
+}
+
 fn find_leaf_cert(sid: &SignerIdentifier, bundle: &[Vec<u8>]) -> Option<Vec<u8>> {
     match sid {
         SignerIdentifier::IssuerAndSerialNumber(ias) => bundle
@@ -601,8 +642,74 @@ fn find_leaf_cert(sid: &SignerIdentifier, bundle: &[Vec<u8>]) -> Option<Vec<u8>>
                     .unwrap_or(false)
             })
             .cloned(),
-        SignerIdentifier::SubjectKeyIdentifier(_) => bundle.first().cloned(),
+        SignerIdentifier::SubjectKeyIdentifier(ski) => {
+            let target = ski.0.as_bytes();
+            bundle
+                .iter()
+                .find(|der| {
+                    Certificate::from_der(der)
+                        .ok()
+                        .and_then(|c| cert_subject_key_identifier(&c))
+                        .map(|ext_ski| ext_ski.as_slice() == target)
+                        .unwrap_or(false)
+                })
+                .cloned()
+        }
     }
+}
+
+fn x509_time_to_unix(t: Time) -> u64 {
+    match t {
+        Time::UtcTime(u) => u.to_unix_duration().as_secs(),
+        Time::GeneralTime(g) => g.to_unix_duration().as_secs(),
+    }
+}
+
+fn cert_valid_at(cert: &Certificate, timestamp: u64) -> bool {
+    let not_before = x509_time_to_unix(cert.tbs_certificate.validity.not_before);
+    let not_after = x509_time_to_unix(cert.tbs_certificate.validity.not_after);
+    not_before <= timestamp && timestamp <= not_after
+}
+
+/// Checks RFC 5280 CA constraints: `BasicConstraints.ca == true`, `pathLenConstraint` honored,
+/// and if `KeyUsage` is present, the `keyCertSign` bit (bit 5, MSB-0 = 0x04) must be set.
+fn cert_is_ca(cert: &Certificate, intermediates_below: u32) -> bool {
+    let Some(exts) = cert.tbs_certificate.extensions.as_ref() else {
+        return false;
+    };
+    let mut is_ca = false;
+    let mut key_usage_ok = true;
+
+    for ext in exts.iter() {
+        let oid = ext.extn_id.to_string();
+        if oid == "2.5.29.19" {
+            // id-ce-basicConstraints
+            let Ok(bc) = BasicConstraints::from_der(ext.extn_value.as_bytes()) else {
+                return false;
+            };
+            if !bc.ca {
+                return false;
+            }
+            if let Some(max_len) = bc.path_len_constraint {
+                if intermediates_below > max_len as u32 {
+                    return false;
+                }
+            }
+            is_ca = true;
+        } else if oid == "2.5.29.15" {
+            // id-ce-keyUsage (BIT STRING: bit 5 MSB-0 = keyCertSign = 0x04)
+            let Ok(bits) = BitStringRef::from_der(ext.extn_value.as_bytes()) else {
+                return false;
+            };
+            key_usage_ok = bits
+                .raw_bytes()
+                .first()
+                .map(|b| (b & 0x04) != 0)
+                .unwrap_or(false);
+        }
+    }
+
+    is_ca && key_usage_ok
 }
 
 fn parse_cms_signing_time(val: &x509_cert::der::Any) -> Option<u64> {
@@ -650,16 +757,27 @@ fn verify_rsa_over_tbs(
     }
 }
 
-fn verify_cert_chain(leaf_der: &[u8], bundle: &[Vec<u8>], trusted_root_der: &[u8]) -> bool {
+fn verify_cert_chain(
+    leaf_der: &[u8],
+    bundle: &[Vec<u8>],
+    trusted_root_der: &[u8],
+    doc_timestamp: u64,
+) -> bool {
     let Ok(root_cert) = Certificate::from_der(trusted_root_der) else {
         return false;
     };
+    if !cert_valid_at(&root_cert, doc_timestamp) {
+        return false;
+    }
 
     let mut current_der = leaf_der.to_vec();
-    for _depth in 0u32..8 {
+    for depth in 0u32..8 {
         let Ok(current) = Certificate::from_der(&current_der) else {
             return false;
         };
+        if !cert_valid_at(&current, doc_timestamp) {
+            return false;
+        }
 
         // Direct match if the leaf itself is the trusted root (e.g., self-signed test CA).
         if current_der == trusted_root_der {
@@ -677,7 +795,8 @@ fn verify_cert_chain(leaf_der: &[u8], bundle: &[Vec<u8>], trusted_root_der: &[u8
         };
 
         if current.tbs_certificate.issuer == root_cert.tbs_certificate.subject {
-            return verify_rsa_over_tbs(&tbs_der, sig_bytes, &root_cert, alg);
+            return cert_is_ca(&root_cert, depth)
+                && verify_rsa_over_tbs(&tbs_der, sig_bytes, &root_cert, alg);
         }
 
         let Some(issuer_der) = bundle.iter().find(|c| {
@@ -691,7 +810,10 @@ fn verify_cert_chain(leaf_der: &[u8], bundle: &[Vec<u8>], trusted_root_der: &[u8
         let Ok(issuer_cert) = Certificate::from_der(issuer_der) else {
             return false;
         };
-        if !verify_rsa_over_tbs(&tbs_der, sig_bytes, &issuer_cert, alg) {
+        if !cert_valid_at(&issuer_cert, doc_timestamp)
+            || !cert_is_ca(&issuer_cert, depth)
+            || !verify_rsa_over_tbs(&tbs_der, sig_bytes, &issuer_cert, alg)
+        {
             return false;
         }
         current_der = issuer_der.clone();
@@ -865,12 +987,96 @@ mod tests {
             hex::encode(committed.issuer_hash),
             "3da288f764431cb9c5898ccf3028f5f295bfb5f1ee7045a1f42c7cecdcf09600"
         );
-        // Exact deterministic CMS nullifier
-        assert_eq!(
-            hex::encode(committed.nullifier),
-            "1d345891df3edb8c58ac57900cf6c781912c5dec0684e0a65c3b0e5d25a706d4"
-        );
+        // Non-malleable nullifier = SHA-256(signer_info.signature)
+        let cms_der = decode_trimmed_hex(
+            &pdf[hints.contents_hex_offset as usize
+                ..(hints.contents_hex_offset + hints.contents_hex_len) as usize],
+        )
+        .unwrap();
+        let ci = ContentInfo::from_der(&cms_der).unwrap();
+        let sd: SignedData = ci.content.decode_as().unwrap();
+        let raw_sig = sd.signer_infos.0.iter().next().unwrap().signature.as_bytes();
+        let expected_nullifier: [u8; 32] = Sha256::digest(raw_sig).into();
+        assert_eq!(committed.nullifier, expected_nullifier);
         assert_eq!(committed.to_bytes().len(), 108);
+    }
+
+    #[test]
+    fn test_cms_reencoding_unsigned_attrs_and_cert_reorder_preserves_nullifier() {
+        use cms::signed_data::SignedData;
+        use x509_cert::attr::Attribute;
+        use x509_cert::der::asn1::{ObjectIdentifier, SetOfVec};
+        use x509_cert::der::Any;
+
+        let orig_pdf = std::fs::read("../script/attestation.pdf").unwrap();
+        let hints = compute_hints(&orig_pdf, POLICY_ACCREDITED_INVESTOR).unwrap();
+        let wallet_hash = [0x42u8; 32];
+
+        let orig = verify_and_extract(
+            &orig_pdf,
+            hints,
+            POLICY_ACCREDITED_INVESTOR,
+            wallet_hash,
+            &[DIGICERT_ROOT_G4],
+        )
+        .unwrap();
+
+        // Parse CMS blob, mutate unsigned attributes + reorder embedded certificates, re-encode DER
+        let hex_start = hints.contents_hex_offset as usize;
+        let hex_len = hints.contents_hex_len as usize;
+        let cms_der = decode_trimmed_hex(&orig_pdf[hex_start..hex_start + hex_len]).unwrap();
+        let mut ci = ContentInfo::from_der(&cms_der).unwrap();
+        let mut sd: SignedData = ci.content.decode_as().unwrap();
+
+        // Append a bogus unsigned attribute to SignerInfo (not covered by the RSA signature).
+        // Under the old `sha256(cms_der)` nullifier, this produced a brand-new nullifier from the
+        // exact same PDF; under `sha256(signer_info.signature)`, the nullifier must stay identical.
+        let mut signers: Vec<_> = sd.signer_infos.0.iter().cloned().collect();
+        let dummy_val = OctetString::new(b"attacker-malleability-probe".to_vec())
+            .unwrap()
+            .to_der()
+            .unwrap();
+        let mut vals = SetOfVec::new();
+        vals.insert_ordered(Any::from_der(&dummy_val).unwrap())
+            .unwrap();
+        let dummy_attr = Attribute {
+            oid: ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.2.99"),
+            values: vals,
+        };
+        let mut unsigned_vec: Vec<_> = signers[0]
+            .unsigned_attrs
+            .clone()
+            .map(|u| u.iter().cloned().collect())
+            .unwrap_or_default();
+        unsigned_vec.push(dummy_attr);
+        signers[0].unsigned_attrs = Some(SetOfVec::try_from(unsigned_vec).unwrap());
+        sd.signer_infos.0 = SetOfVec::try_from(signers).unwrap();
+
+        ci.content = Any::from_der(&sd.to_der().unwrap()).unwrap();
+        let mutated_cms = ci.to_der().unwrap();
+        assert_ne!(mutated_cms, cms_der, "re-encoded CMS bytes must actually differ");
+
+        let mutated_hex = hex::encode(&mutated_cms).into_bytes();
+        assert!(mutated_hex.len() <= hex_len);
+        let mut mutated_pdf = orig_pdf.clone();
+        for b in &mut mutated_pdf[hex_start..hex_start + hex_len] {
+            *b = b'0';
+        }
+        mutated_pdf[hex_start..hex_start + mutated_hex.len()].copy_from_slice(&mutated_hex);
+
+        let mutated = verify_and_extract(
+            &mutated_pdf,
+            hints,
+            POLICY_ACCREDITED_INVESTOR,
+            wallet_hash,
+            &[DIGICERT_ROOT_G4],
+        )
+        .expect("mutated unsigned CMS wrapper still carries valid RSA signature");
+
+        assert_eq!(
+            mutated.nullifier, orig.nullifier,
+            "nullifier MUST remain identical even when CMS wrapper / unsigned attrs are re-encoded"
+        );
     }
 
     #[test]
@@ -1026,6 +1232,88 @@ mod tests {
     }
 
     #[test]
+    fn test_cert_validity_window_and_ca_constraints_enforced() {
+        let pdf = std::fs::read("../script/attestation.pdf").unwrap();
+        let hints = compute_hints(&pdf, POLICY_ACCREDITED_INVESTOR).unwrap();
+        let cms_der = decode_trimmed_hex(
+            &pdf[hints.contents_hex_offset as usize
+                ..(hints.contents_hex_offset + hints.contents_hex_len) as usize],
+        )
+        .unwrap();
+        let ci = ContentInfo::from_der(&cms_der).unwrap();
+        let sd: SignedData = ci.content.decode_as().unwrap();
+        let bundle: Vec<Vec<u8>> = sd
+            .certificates
+            .as_ref()
+            .unwrap()
+            .0
+            .iter()
+            .filter_map(|c| match c {
+                CertificateChoices::Certificate(cert) => cert.to_der().ok(),
+                _ => None,
+            })
+            .collect();
+        let signer_info = sd.signer_infos.0.iter().next().unwrap();
+        let leaf_der = find_leaf_cert(&signer_info.sid, &bundle).unwrap();
+        let leaf_cert = Certificate::from_der(&leaf_der).unwrap();
+        let root_cert = Certificate::from_der(DIGICERT_ROOT_G4).unwrap();
+
+        // Valid at real signingTime (Jun 26 2026)
+        assert!(verify_cert_chain(&leaf_der, &bundle, DIGICERT_ROOT_G4, 1_782_516_367));
+        // Before leaf cert notBefore (Apr 24 2025 -> 1_745_452_800) must fail
+        assert!(!verify_cert_chain(&leaf_der, &bundle, DIGICERT_ROOT_G4, 1_700_000_000));
+        // After leaf cert notAfter (Apr 23 2028 -> 1_840_147_199) must fail
+        assert!(!verify_cert_chain(&leaf_der, &bundle, DIGICERT_ROOT_G4, 1_900_000_000));
+        // End-entity leaf cert (CA:FALSE) must never pass cert_is_ca
+        assert!(!cert_is_ca(&leaf_cert, 0));
+        assert!(cert_is_ca(&root_cert, 0));
+    }
+
+    #[test]
+    fn test_find_leaf_cert_by_ski_ignores_cert_order() {
+        let pdf = std::fs::read("../script/attestation.pdf").unwrap();
+        let hints = compute_hints(&pdf, POLICY_ACCREDITED_INVESTOR).unwrap();
+        let cms_der = decode_trimmed_hex(
+            &pdf[hints.contents_hex_offset as usize
+                ..(hints.contents_hex_offset + hints.contents_hex_len) as usize],
+        )
+        .unwrap();
+        let ci = ContentInfo::from_der(&cms_der).unwrap();
+        let sd: SignedData = ci.content.decode_as().unwrap();
+        let mut bundle: Vec<Vec<u8>> = sd
+            .certificates
+            .as_ref()
+            .unwrap()
+            .0
+            .iter()
+            .filter_map(|c| match c {
+                CertificateChoices::Certificate(cert) => cert.to_der().ok(),
+                _ => None,
+            })
+            .collect();
+        let signer_info = sd.signer_infos.0.iter().next().unwrap();
+        let leaf_der = find_leaf_cert(&signer_info.sid, &bundle).unwrap();
+        let leaf_cert = Certificate::from_der(&leaf_der).unwrap();
+        let leaf_ski = cert_subject_key_identifier(&leaf_cert).expect("DocuSign leaf has SKI");
+
+        // Move leaf to the END of the bundle so bundle.first() is NOT the leaf
+        bundle.retain(|c| c != &leaf_der);
+        bundle.push(leaf_der.clone());
+        assert_ne!(bundle[0], leaf_der);
+
+        let sid = SignerIdentifier::SubjectKeyIdentifier(
+            x509_cert::ext::pkix::SubjectKeyIdentifier(OctetString::new(leaf_ski).unwrap()),
+        );
+        let found = find_leaf_cert(&sid, &bundle).expect("SKI lookup must find leaf regardless of order");
+        assert_eq!(found, leaf_der);
+
+        let bad_sid = SignerIdentifier::SubjectKeyIdentifier(
+            x509_cert::ext::pkix::SubjectKeyIdentifier(OctetString::new(vec![0xAA; 20]).unwrap()),
+        );
+        assert!(find_leaf_cert(&bad_sid, &bundle).is_none());
+    }
+
+    #[test]
     fn test_wallet_hash_matches_soroban_xdr_convention() {
         // Must match soroban-zk-investor-gate::test::test_g_account_address_xdr_matches_canonical_44_byte_layout
         let g_addr = "GDK6H34QWHRT6UBIFZU7VWAYYFJHUBCMMNAONVBELKBSWCM57XM3Q62P";
@@ -1050,13 +1338,28 @@ mod tests {
     }
 
     #[test]
-    fn test_pharmacist_policy_phrase_matching() {
+    fn test_negated_policy_statements_rejected() {
+        // Affirmative statements pass (even with extra whitespace / line breaks)
         assert!(check_policy_phrase(
-            "This certifies Dr. Ada Okafor is a Licensed Pharmacist in good standing with PCN.",
+            "I confirm that the Investor has an individual net worth in excess of $1,000,000,\n  excluding the value of their primary residence.",
+            POLICY_ACCREDITED_INVESTOR
+        ));
+        assert!(check_policy_phrase(
+            "This document certifies that the bearer is a Licensed Pharmacist\ncurrently registered and in good standing for regulated procurement.",
+            POLICY_LICENSED_PHARMACIST
+        ));
+
+        // Negated statements MUST fail
+        assert!(!check_policy_phrase(
+            "I confirm that the Investor does NOT have an individual net worth in excess of $1,000,000, excluding the value of their primary residence.",
+            POLICY_ACCREDITED_INVESTOR
+        ));
+        assert!(!check_policy_phrase(
+            "This document certifies that the bearer is NOT a Licensed Pharmacist currently registered and in good standing.",
             POLICY_LICENSED_PHARMACIST
         ));
         assert!(!check_policy_phrase(
-            "This certifies Tunde is a Software Engineer in good standing.",
+            "This certifies Tunde is a Software Engineer currently registered and in good standing.",
             POLICY_LICENSED_PHARMACIST
         ));
     }
