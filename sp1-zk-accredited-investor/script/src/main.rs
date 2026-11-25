@@ -1,60 +1,153 @@
-//! Host script for the ZK Accredited Investor proof pipeline.
-//! - Feeds PDF + cert + timestamp + wallet to the SP1 prover.
-//! - Generates Groth16 BN254 proof (critical for Soroban size/budget).
-//! - Extracts public values.
-//! - Encodes proof + inputs into Soroban-compatible format (see encode section).
-//! - Writes proof.json for frontend/submission.
+//! Host CLI for the ProofPass v2 SP1 Groth16 proof pipeline.
+//!
+//! Usage examples:
+//!   # 1. Fast cycle-count dry run (seconds, no Groth16 wrap):
+//!   cargo run --release --bin prove --features sp1 -- \
+//!     --execute-only --pdf attestation.pdf --policy-id 1 \
+//!     --wallet GDK6H34QWHRT6UBIFZU7VWAYYFJHUBCMMNAONVBELKBSWCM57XM3Q62P
+//!
+//!   # 2. Full GPU Groth16 prove (RTX 4090 / sp1-gpu-server in SP1 v6.3.1):
+//!   SP1_PROVER=cuda cargo run --release --bin prove --features cuda -- \
+//!     --pdf attestation.pdf --policy-id 1 \
+//!     --wallet GDK6H34QWHRT6UBIFZU7VWAYYFJHUBCMMNAONVBELKBSWCM57XM3Q62P \
+//!     --out proof_investor.json
+//!
+//!   # 3. Policy 2 (Testnet Mock Licensed Pharmacist) GPU Groth16 prove:
+//!   SP1_PROVER=cuda cargo run --release --bin prove --features cuda -- \
+//!     --pdf pharmacist_license_mock.pdf --policy-id 2 \
+//!     --wallet GDK6H34QWHRT6UBIFZU7VWAYYFJHUBCMMNAONVBELKBSWCM57XM3Q62P \
+//!     --out proof_pharmacist.json
+//!
+//!   # 4. Succinct Prover Network:
+//!   SP1_PROVER=network cargo run --release --bin prove --features network -- \
+//!     --pdf attestation.pdf --policy-id 1 --wallet G... --out proof.json
 
 mod pdf_utils;
 
-#[cfg(feature = "sp1")]
-use sp1_sdk::{ProverClient, SP1Stdin, SP1ProofWithPublicValues};
+use proofpass_core::{
+    compute_hints, stellar_g_address_to_wallet_hash, verify_and_extract, CommittedPublicValues,
+    POLICY_ACCREDITED_INVESTOR, POLICY_LICENSED_PHARMACIST,
+};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::Instant;
+
+const DIGICERT_ROOT_G4_DER: &[u8] = include_bytes!("../../certs/digicert_root_g4.der");
+const TESTNET_MOCK_PHARMACY_ROOT_DER: &[u8] =
+    include_bytes!("../../certs/testnet_mock_pharmacy_root.der");
+
+struct CliArgs {
+    pdf_path: String,
+    policy_id: u32,
+    wallet_g_addr: String,
+    out_path: String,
+    execute_only: bool,
+}
+
+fn parse_args() -> CliArgs {
+    let mut pdf_path = "attestation.pdf".to_string();
+    let mut policy_id = POLICY_ACCREDITED_INVESTOR;
+    // Default funded Stellar Testnet account (`GDK6...Q62P`)
+    let mut wallet_g_addr = "GDK6H34QWHRT6UBIFZU7VWAYYFJHUBCMMNAONVBELKBSWCM57XM3Q62P".to_string();
+    let mut out_path = "proof.json".to_string();
+    let mut execute_only = false;
+
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--pdf" if i + 1 < args.len() => {
+                pdf_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--policy-id" if i + 1 < args.len() => {
+                policy_id = args[i + 1]
+                    .parse::<u32>()
+                    .expect("--policy-id must be a u32 (1 = ACCREDITED_INVESTOR, 2 = LICENSED_PHARMACIST)");
+                i += 2;
+            }
+            "--wallet" if i + 1 < args.len() => {
+                wallet_g_addr = args[i + 1].clone();
+                i += 2;
+            }
+            "--out" if i + 1 < args.len() => {
+                out_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--execute-only" => {
+                execute_only = true;
+                i += 1;
+            }
+            other => {
+                eprintln!("Ignoring unrecognized argument: {}", other);
+                i += 1;
+            }
+        }
+    }
+
+    CliArgs {
+        pdf_path,
+        policy_id,
+        wallet_g_addr,
+        out_path,
+        execute_only,
+    }
+}
 
 #[tokio::main]
 async fn main() {
-    // === LOCAL PDF VALIDATION (Day 1) ===
-    // This runs without SP1 and lets you test parsing on your real DocuSign PDF.
-    if let Ok(pdf) = fs::read("attestation.pdf") {
-        println!("=== LOCAL PDF ANALYSIS (outside zkVM) ===");
-        let text = pdf_utils::extract_pdf_text(&pdf);
-        println!("Extracted text sample (first 300 chars): {}", &text[..text.len().min(300)]);
-        println!("Accredited phrase check: {}", pdf_utils::check_accredited_investor_phrase(&text));
+    let cli = parse_args();
+    let pdf_bytes = fs::read(&cli.pdf_path)
+        .unwrap_or_else(|e| panic!("Failed to read PDF at {}: {}", cli.pdf_path, e));
 
-        if let Some(ts) = pdf_utils::extract_pdf_date(&pdf) {
-            println!("Extracted date (unix): {}", ts);
-        } else {
-            println!("Could not extract date (implement more robust parser).");
-        }
+    let wallet_hash = stellar_g_address_to_wallet_hash(&cli.wallet_g_addr)
+        .expect("Invalid Stellar G-account StrKey passed to --wallet");
 
-        let null = pdf_utils::derive_nullifier(&pdf);
-        println!("Derived nullifier: {}", hex::encode(null));
+    println!("=== PROOFPASS v2 PRE-FLIGHT VERIFICATION ===");
+    println!("  PDF:         {} ({} bytes)", cli.pdf_path, pdf_bytes.len());
+    println!("  Policy ID:   {}", cli.policy_id);
+    println!("  Wallet:      {}", cli.wallet_g_addr);
+    println!("  Wallet hash: 0x{}", hex::encode(wallet_hash));
 
-        let sig_present = pdf_utils::extract_signature_bytes(&pdf).is_some();
-        println!("Signature blob present (heuristic): {}", sig_present);
+    let hints = compute_hints(&pdf_bytes, cli.policy_id)
+        .expect("Failed to locate /ByteRange, /Contents, or policy text stream in PDF");
+    println!("  Hints:       {:?}", hints);
 
-        // Use the compile-time embedded DigiCert Trusted Root G4 as the trust anchor.
-        let docusign_root = load_docusign_root_cert();
-        println!("Local sig verify stub: {}", pdf_utils::verify_pkcs7_signature_local(&pdf, docusign_root));
-    } else {
-        println!("No attestation.pdf found in cwd. Place a real DocuSign-signed PDF here for local tests.");
-    }
+    let trusted_roots: &[&[u8]] = match cli.policy_id {
+        POLICY_ACCREDITED_INVESTOR => &[DIGICERT_ROOT_G4_DER],
+        POLICY_LICENSED_PHARMACIST => &[DIGICERT_ROOT_G4_DER, TESTNET_MOCK_PHARMACY_ROOT_DER],
+        other => panic!("Unsupported policy_id {}", other),
+    };
 
-    // If you only want local analysis, you can return early here during Day 1.
-    // return;
+    let preflight = verify_and_extract(
+        &pdf_bytes,
+        hints,
+        cli.policy_id,
+        wallet_hash,
+        trusted_roots,
+    )
+    .expect("Host pre-flight cryptographic verification failed (would fail inside SP1 guest)");
+
+    println!("  Pre-flight:  PASSED ✓");
+    println!("  Issuer hash: 0x{}", hex::encode(preflight.issuer_hash));
+    println!("  Nullifier:   0x{}", hex::encode(preflight.nullifier));
+    println!("  Doc time:    {} (from signed PKCS#7 signingTime)", preflight.doc_timestamp);
+    println!("  SP1 digest:  0x{}", hex::encode(preflight.sp1_digest()));
 
     #[cfg(feature = "sp1")]
-    run_prover().await;
+    run_prover(&cli, pdf_bytes, hints, wallet_hash, preflight).await;
 }
 
 #[cfg(feature = "sp1")]
-async fn run_prover() {
-    use sp1_sdk::{ProverClient, SP1Stdin, SP1ProofWithPublicValues, Prover, ProveRequest, ProvingKey, HashableKey};
+async fn run_prover(
+    cli: &CliArgs,
+    pdf_bytes: Vec<u8>,
+    hints: proofpass_core::ProofHints,
+    wallet_hash: [u8; 32],
+    expected: CommittedPublicValues,
+) {
+    use sp1_sdk::{HashableKey, ProveRequest, Prover, ProverClient, ProvingKey, SP1ProofWithPublicValues, SP1Stdin};
 
-    // Initialize SP1 prover (uses Docker for Groth16 wrapper in official releases)
     let client = ProverClient::from_env().await;
 
     let env_path = std::env::var("SP1_ELF_zk-accredited-investor-program").ok();
@@ -62,225 +155,141 @@ async fn run_prover() {
         let here = std::env::current_dir().unwrap_or_default();
         let candidates = [
             here.join("program/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/zk-accredited-investor-program"),
-            here.parent().expect("script parent").join("target/elf-compilation/riscv64im-succinct-zkvm-elf/release/zk-accredited-investor-program"),
+            here.parent()
+                .expect("script parent")
+                .join("target/elf-compilation/riscv64im-succinct-zkvm-elf/release/zk-accredited-investor-program"),
         ];
-        candidates.into_iter().find(|p| p.exists()).unwrap_or_else(|| {
-            eprintln!("SP1_ELF_zk-accredited-investor-program missing and no workspace elf found from cwd={}", here.display());
-            here.parent().expect("script parent").join("target/elf-compilation/riscv64im-succinct-zkvm-elf/release/zk-accredited-investor-program")
-        }).to_string_lossy().into_owned()
+        candidates
+            .into_iter()
+            .find(|p| p.exists())
+            .unwrap_or_else(|| {
+                here.parent()
+                    .expect("script parent")
+                    .join("target/elf-compilation/riscv64im-succinct-zkvm-elf/release/zk-accredited-investor-program")
+            })
+            .to_string_lossy()
+            .into_owned()
     });
-    let elf = std::fs::read(&elf_path)
-        .unwrap_or_else(|e| panic!("failed to read zkvm elf at {}: {}", elf_path, e));
-    println!("Loaded zkvm elf path={} len={}", elf_path, elf.len());
+    let elf = fs::read(&elf_path)
+        .unwrap_or_else(|e| panic!("Failed to read SP1 guest ELF at {}: {}", elf_path, e));
+    println!("\nLoaded SP1 ELF: {} ({} bytes)", elf_path, elf.len());
 
-    // === INPUTS (replace with real paths/args in production) ===
-    let pdf_bytes = fs::read("attestation.pdf").expect("PDF not found. Place a real DocuSign-signed CPA attestation PDF here (with the SEC anchor phrase). Generate via DocuSign free trial.");
-
-    // Hardcoded DocuSign root CA DER (download from DocuSign Trust Center; use the actual root that signed your test PDFs).
-    // DO NOT trust user-provided certs — this is the trusted anchor.
-    let docusign_cert = load_docusign_root_cert();
-
-    let current_timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
-    // Real funded Stellar testnet wallet pubkey bytes for GBUG...FYN5
-    let proofpass_wallet_raw: [u8; 32] = [
-        0xd5, 0xe3, 0xef, 0x90, 0xb1, 0xe3, 0x3f, 0x50,
-        0x28, 0x2e, 0x69, 0xfa, 0xd8, 0x18, 0xc1, 0x52,
-        0x7a, 0x04, 0x4c, 0x63, 0x40, 0xe6, 0xd4, 0x24,
-        0x5a, 0x83, 0x2b, 0x09, 0x9d, 0xfd, 0xd9, 0xb8,
-    ];
-
-    println!("Inputs prepared. PDF len={}, ts={}", pdf_bytes.len(), current_timestamp);
-
-    // Feed private inputs to zkVM (order must match program reads)
     let mut stdin = SP1Stdin::new();
-    stdin.write_vec(pdf_bytes.clone());
-    stdin.write_vec(docusign_cert.to_vec());
-    stdin.write(&current_timestamp);
-    stdin.write(&proofpass_wallet_raw);
+    stdin.write_vec(pdf_bytes);
+    stdin.write(&hints);
+    stdin.write(&cli.policy_id);
+    stdin.write(&wallet_hash);
 
-    // === GENERATE PROOF ===
-    // CRITICAL: Use .groth16() — raw STARK will exceed Soroban WASM CPU limits.
-    let pk = client.setup(sp1_sdk::Elf::from(elf)).await.expect("Setup failed");
+    if cli.execute_only {
+        let t0 = Instant::now();
+        let (public_values, report) = client
+            .execute(sp1_sdk::Elf::from(elf), stdin)
+            .await
+            .expect("SP1 guest execution failed");
+        let elapsed = t0.elapsed();
+        assert_eq!(
+            public_values.as_slice(),
+            &expected.to_bytes(),
+            "Guest committed bytes diverged from pre-flight expectation!"
+        );
+        println!("\n=== SP1 EXECUTE BENCHMARK ===");
+        println!("  Elapsed:        {:.2?}", elapsed);
+        println!("  Total cycles:   {}", report.total_instruction_count());
+        println!("  Syscall counts: {:?}", report.syscall_counts);
+        println!("  Committed len:  {} bytes (matches Soroban 108-byte layout ✓)", public_values.as_slice().len());
+        return;
+    }
+
+    let t0 = Instant::now();
+    let pk = client
+        .setup(sp1_sdk::Elf::from(elf))
+        .await
+        .expect("SP1 setup failed");
     let vk = pk.verifying_key();
-    println!("Program VK (for contract hardcode): {}", vk.bytes32());
+    let program_vkey_hex = vk.bytes32();
+    println!("Program VK hash (for Soroban initialize / update_program_vkey): {}", program_vkey_hex);
 
     let proof: SP1ProofWithPublicValues = client
         .prove(&pk, stdin)
-        .groth16() // This triggers the BN254 compression wrapper (gnark)
+        .groth16()
         .await
-        .expect("Proof generation failed. Ensure Docker is running for Groth16 prover if required by your SP1 version.");
+        .expect("SP1 Groth16 proof generation failed");
+    let elapsed = t0.elapsed();
 
-    println!("Groth16 proof generated successfully (len ~260 bytes compressed).");
-
-    // === USABLE HOST PUBLIC OUTPUTS ===
-    let proofpass_wallet_raw_out = proofpass_wallet_raw;
-    let nullifier = pdf_utils::derive_nullifier(&pdf_bytes);
-    let timestamp = current_timestamp;
-
-    println!("Groth16 proof generated successfully (len ~260 bytes compressed).");
-    let raw_bytes = proof.public_values.as_slice();
-    println!("Raw public values len={} bytes={}", raw_bytes.len(), hex::encode(raw_bytes));
-    println!("Public outputs from proof:");
-    println!("  wallet:    {}", hex::encode(proofpass_wallet_raw_out));
-    println!("  nullifier: {}", hex::encode(nullifier));
-    println!("  timestamp: {}", timestamp);
-
-    // === ENCODE FOR SOROBAN (byte-accurate G2 encoding) ===
-    // Passes the real public values extracted above — no placeholders.
-    let soroban_proof = encode_proof_for_soroban(
-        &proof,
-        proofpass_wallet_raw_out,
-        nullifier,
-        timestamp,
+    assert_eq!(
+        proof.public_values.as_slice(),
+        &expected.to_bytes(),
+        "Guest committed bytes diverged from pre-flight expectation!"
     );
 
-    // Pretty-print the JSON layout for verification
-    println!("\n=== SOROBAN PROOF ENCODING ===");
-    println!("  pi_a (G1, 64B):  {}...", &soroban_proof.pi_a[..18]);
-    println!("  pi_b (G2, 128B): {}...", &soroban_proof.pi_b[..18]);
-    println!("  pi_c (G1, 64B):  {}...", &soroban_proof.pi_c[..18]);
-    println!("  vkey prefix:     {}", soroban_proof.program_vkey_hash);
-    println!("  G2 order: x1,x0,y1,y0 (gnark/Soroban native — no swap needed)");
-
-    // Save artifacts
+    let soroban_proof = encode_proof_for_soroban(&proof, &program_vkey_hex, expected);
     fs::write(
-        "proof.json",
+        &cli.out_path,
         serde_json::to_string_pretty(&soroban_proof).unwrap(),
     )
-    .expect("Failed to write proof.json");
+    .unwrap_or_else(|e| panic!("Failed to write {}: {}", cli.out_path, e));
 
-    println!("\nFull proof.json written — ready for Soroban submission.");
-    println!("Next: stellar contract invoke --id <CONTRACT> --fn verify_and_authorize ...");
+    println!("\n=== SOROBAN v2 PROOF GENERATED ===");
+    println!("  Prove time:        {:.2?}", elapsed);
+    println!("  Output file:       {}", cli.out_path);
+    println!("  program_vkey_hash: {}", soroban_proof.program_vkey_hash);
+    println!("  pi_a (G1, 64B):    {}...", &soroban_proof.pi_a[..18]);
+    println!("  pi_b (G2, 128B):   {}...", &soroban_proof.pi_b[..18]);
+    println!("  pi_c (G1, 64B):    {}...", &soroban_proof.pi_c[..18]);
 }
 
-/// Returns the DigiCert Trusted Root G4 DER bytes, embedded at compile time.
-///
-/// Why compile-time embedding?
-/// - The SP1 zkVM runs in a sandboxed environment with no filesystem access at runtime.
-/// - The trust anchor must be available inside the proof-generation pipeline without
-///   external dependencies.
-/// - Baking it in at compile time prevents runtime substitution attacks — the same
-///   reason browsers ship root CAs inside their binaries rather than reading them
-///   from a user-writable path.
-///
-/// Source: DigiCert Trusted Root G4 — the actual root that signs DocuSign eSignature
-/// PDF certificates. Fetched from the DigiCert Trust Center and stored at
-/// certs/digicert_root_g4.der in this repository.
-fn load_docusign_root_cert() -> &'static [u8] {
-    include_bytes!("../../certs/digicert_root_g4.der")
-}
-
-// ─── Soroban-compatible proof encoding ───────────────────────────────────────
-//
-// SP1 Groth16 proof bytes layout (gnark BN254 uncompressed):
-//
-//   [0..4]      4-byte SP1 program vkey hash prefix → STRIP before Soroban
-//   [4..68]     pi_a  (G1) : x[32] || y[32]              — big-endian
-//   [68..196]   pi_b  (G2) : x1[32]||x0[32]||y1[32]||y0[32] — gnark order
-//   [196..260]  pi_c  (G1) : x[32] || y[32]              — big-endian
-//
-// G2 coordinate note:
-//   gnark (and therefore SP1) serialises G2 as [x1, x0, y1, y0] where
-//   x = x0 + i·x1 in Fp2.  This is exactly the order Soroban's
-//   Bn254G2Affine / env.crypto().bn254() expects (see CAP-0074 + SDK docs).
-//   NO extra swap is needed — the bytes come out of SP1 already in the right
-//   order for Soroban.  What *would* need swapping is if you were targeting
-//   Ethereum's alt_bn128 precompile (which uses x0,x1,y0,y1).
-//
-// Reference:
-//   • sp1-solana/crates/verifier/src/groth16  — convert_endianness pattern
-//   • stellar/rs-soroban-env / CAP-0074        — Bn254G2Affine field layout
-//   • Nethermind RISC0 verifier                — vkey prefix handling
-
-/// Byte-accurate Soroban Groth16 proof encoding.
+/// Byte-accurate Soroban v2 Groth16 proof payload consumed by `ZkInvestorGate::verify_and_authorize`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SorobanProof {
-    /// pi_a: G1 affine point [x(32) || y(32)], big-endian, 0x-hex
     pub pi_a: String,
-    /// pi_b: G2 affine point [x1(32)||x0(32)||y1(32)||y0(32)], big-endian, 0x-hex
-    /// Coordinate order is x1,x0,y1,y0 (gnark / Soroban convention).
     pub pi_b: String,
-    /// pi_c: G1 affine point [x(32) || y(32)], big-endian, 0x-hex
     pub pi_c: String,
-    /// SHA-256 digest of the SP1 program (vkey hash), 0x-hex.
-    /// Must match the value passed to `initialize` on the Soroban contract.
     pub program_vkey_hash: String,
-    /// Raw SP1 proof bytes (before prefix stripping), for debugging.
     pub raw_sp1_proof_hex: String,
-    /// Public values committed by the zkVM program.
     pub public_inputs: SorobanPublicInputs,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SorobanPublicInputs {
-    /// 32-byte investor Ed25519 wallet (G-account raw pubkey, not strkey), 0x-hex
-    pub proofpass_wallet_raw: String,
-    /// 32-byte nullifier = SHA-256(DocuSign sig bytes), 0x-hex
+    pub wallet_hash: String,
+    pub policy_id: u32,
+    pub issuer_hash: String,
     pub nullifier: String,
-    /// Unix timestamp (seconds) from the PDF date, also committed in the proof
-    pub timestamp: u64,
+    pub doc_timestamp: u64,
 }
 
-/// Encode a Groth16 proof into the byte-accurate format required by the
-/// Soroban `verify_and_authorize` contract function.
-///
-/// # Panics
-/// Panics if the proof bytes (after stripping the 4-byte prefix) are shorter
-/// than 256 bytes — which would indicate a malformed SP1 Groth16 output.
 #[cfg(feature = "sp1")]
 pub fn encode_proof_for_soroban(
-    proof: &SP1ProofWithPublicValues,
-    proofpass_wallet_raw: [u8; 32],
-    nullifier: [u8; 32],
-    timestamp: u64,
+    proof: &sp1_sdk::SP1ProofWithPublicValues,
+    program_vkey_hash: &str,
+    committed: CommittedPublicValues,
 ) -> SorobanProof {
     let raw = proof.bytes();
-
-    // SP1 Groth16 encoded-proof layout inside `proof.bytes()`:
-    //   [0..4]    4-byte groth16_vkey_hash prefix
-    //   [4..36]   exit_code    (32B)
-    //   [36..68]  vk_root      (32B)
-    //   [68..100] proof_nonce  (32B)
+    // SP1 v6 encoded Groth16 bytes layout:
+    //   [0..4]     4-byte groth16_vkey_hash prefix
+    //   [4..36]    exit_code   (32B)
+    //   [36..68]   vk_root     (32B)
+    //   [68..100]  proof_nonce (32B)
     //   [100..356] BN254 point payload (256B): pi_a(64) + pi_b(128) + pi_c(64)
-    //
-    // The Soroban verifier needs only the BN254 point bytes, not this metadata.
     assert!(
-        raw.len() >= 4 + 32 + 32 + 32 + 256,
+        raw.len() >= 356,
         "SP1 Groth16 proof bytes too short: got {} bytes, need at least 356",
         raw.len()
     );
-    let vkey_prefix = &raw[..4];
-    let proof_body = &raw[100..356]; // 256-byte Groth16 BN254 point payload
+    let proof_body = &raw[100..356];
 
-    // ── Slice point coordinates ───────────────────────────────────────────────
-    // pi_a: G1 — uncompressed affine, big-endian [x(32) | y(32)]
-    let pi_a_bytes = &proof_body[0..64];
-
-    // pi_b: G2 — gnark serialises as [x1(32) | x0(32) | y1(32) | y0(32)]
-    // This is the "reversed" order relative to the EVM alt_bn128 precompile,
-    // but it is exactly what Soroban's Bn254G2Affine constructor expects.
-    // Fields: pi_b_x1 = [68..100], pi_b_x0 = [100..132],
-    //         pi_b_y1 = [132..164], pi_b_y0 = [164..196]
-    let pi_b_bytes = &proof_body[64..192]; // already [x1|x0|y1|y0] — no swap needed
-
-    // pi_c: G1 — same layout as pi_a
-    let pi_c_bytes = &proof_body[192..256];
-
-    // ── Encode as 0x-prefixed big-endian hex strings ──────────────────────────
     SorobanProof {
-        pi_a: format!("0x{}", hex::encode(pi_a_bytes)),
-        pi_b: format!("0x{}", hex::encode(pi_b_bytes)),
-        pi_c: format!("0x{}", hex::encode(pi_c_bytes)),
-        program_vkey_hash: format!("0x{}", hex::encode(vkey_prefix)),
+        pi_a: format!("0x{}", hex::encode(&proof_body[0..64])),
+        pi_b: format!("0x{}", hex::encode(&proof_body[64..192])),
+        pi_c: format!("0x{}", hex::encode(&proof_body[192..256])),
+        program_vkey_hash: program_vkey_hash.to_string(),
         raw_sp1_proof_hex: hex::encode(&raw),
         public_inputs: SorobanPublicInputs {
-            proofpass_wallet_raw: format!("0x{}", hex::encode(proofpass_wallet_raw)),
-            nullifier: format!("0x{}", hex::encode(nullifier)),
-            timestamp,
+            wallet_hash: format!("0x{}", hex::encode(committed.wallet_hash)),
+            policy_id: committed.policy_id,
+            issuer_hash: format!("0x{}", hex::encode(committed.issuer_hash)),
+            nullifier: format!("0x{}", hex::encode(committed.nullifier)),
+            doc_timestamp: committed.doc_timestamp,
         },
     }
 }

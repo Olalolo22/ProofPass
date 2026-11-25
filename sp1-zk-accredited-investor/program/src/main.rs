@@ -1,198 +1,48 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
+use proofpass_core::{
+    verify_and_extract, ProofHints, POLICY_ACCREDITED_INVESTOR, POLICY_LICENSED_PHARMACIST,
+};
 use sp1_zkvm::io;
-use sha2::Digest;
+
+/// Compile-time embedded trust anchor #1: DigiCert Trusted Root G4 (DocuSign / AATL root CA).
+/// Used exclusively for production/AATL accredited investor attestations (Policy 1) and also
+/// accepted for Policy 2 if signed via DocuSign.
+const DIGICERT_ROOT_G4_DER: &[u8] = include_bytes!("../../certs/digicert_root_g4.der");
+
+/// Compile-time embedded trust anchor #2: ProofPass Testnet Mock Pharmacy Board Root CA.
+/// Explicitly labeled NOT FOR PRODUCTION — scoped ONLY to Policy 2 (LICENSED_PHARMACIST) for
+/// Testnet multi-pass isolation demos, while Soroban still enforces per-policy `issuer_hash`.
+const TESTNET_MOCK_PHARMACY_ROOT_DER: &[u8] =
+    include_bytes!("../../certs/testnet_mock_pharmacy_root.der");
 
 pub fn main() {
-    // Read private inputs (not revealed in proof)
+    // Private witness inputs (never revealed on-chain)
     let pdf_bytes: Vec<u8> = io::read_vec();
-    let docusign_cert_der: Vec<u8> = io::read_vec();
-    let current_timestamp: u64 = io::read();
-    let investor_wallet: [u8; 32] = io::read();
+    let hints: ProofHints = io::read();
 
-    // Step 1: Verify PKCS#7 signature on PDF
-    let signature_valid = verify_pkcs7_signature(&pdf_bytes, &docusign_cert_der);
-    assert!(signature_valid, "PDF signature invalid");
+    // Public-bound parameters committed into the 108-byte output
+    let policy_id: u32 = io::read();
+    let wallet_hash: [u8; 32] = io::read();
 
-    // Step 2: Extract PDF issue date and check recency (1-year CPA attestation window)
-    let pdf_date = extract_pdf_date(&pdf_bytes);
-    let max_age_seconds: u64 = 365 * 24 * 60 * 60;
-    assert!(
-        current_timestamp - pdf_date <= max_age_seconds,
-        "Document older than 365 days"
-    );
+    let trusted_roots: &[&[u8]] = match policy_id {
+        POLICY_ACCREDITED_INVESTOR => &[DIGICERT_ROOT_G4_DER],
+        POLICY_LICENSED_PHARMACIST => &[DIGICERT_ROOT_G4_DER, TESTNET_MOCK_PHARMACY_ROOT_DER],
+        _ => panic!("Unsupported policy_id"),
+    };
 
-    // Step 3: Parse PDF text layer and run regex
-    let pdf_text = extract_pdf_text(&pdf_bytes);
-    let is_accredited = check_accredited_investor_phrase(&pdf_text);
-    assert!(is_accredited, "Accredited investor phrase not found");
+    // Full cryptographic verification inside the zkVM:
+    //   - /ByteRange + /Contents integrity (no unsigned injection gaps)
+    //   - CMS SignedData messageDigest == hash(ByteRange)
+    //   - Signed PKCS#7 signingTime extraction (tamper-proof doc_timestamp)
+    //   - RSA PKCS#1 v1.5 signature + X.509 certificate chain to policy-scoped trusted root CA
+    //   - Signed text stream boundary check, decompression, and policy statutory phrase check
+    //   - Deterministic nullifier + signer leaf cert identity hash (issuer_hash)
+    let committed = verify_and_extract(&pdf_bytes, hints, policy_id, wallet_hash, trusted_roots)
+        .expect("ProofPass PDF cryptographic verification failed");
 
-    // Step 4: Derive nullifier from DocuSign signature hash
-    let nullifier = derive_nullifier(&pdf_bytes);
-
-    // Commit public outputs (these ARE revealed in proof)
-    io::commit(&investor_wallet);
-    io::commit(&nullifier);
-    io::commit(&current_timestamp);
-}
-
-/// Verify PKCS#7 detached or embedded signature on PDF
-/// DocuSign embeds signature in PDF's AcroForm /ByteRange
-fn verify_pkcs7_signature(pdf_bytes: &[u8], _cert_der: &[u8]) -> bool {
-    // Lean version for zkVM: at minimum confirm a plausible signature blob exists.
-    // Full implementation (ByteRange slicing + cms::SignedData verification + x509 chain)
-    // must be completed with the cms + x509-cert crates and tested outside first.
-    extract_signature_bytes(pdf_bytes).is_some()
-}
-
-fn extract_signature_bytes(pdf_bytes: &[u8]) -> Option<Vec<u8>> {
-    // Scan for /Contents <hex> pattern and trim trailing null padding (matches script/src/pdf_utils.rs).
-    if let Some(pos) = find_subsequence(pdf_bytes, b"/Contents") {
-        let slice = &pdf_bytes[pos..];
-        if let Some(start) = slice.iter().position(|&b| b == b'<') {
-            if let Some(end_rel) = slice[start..].iter().position(|&b| b == b'>') {
-                let inner = &slice[start + 1..start + end_rel];
-                if inner.len() % 2 == 0 && inner.len() > 10 {
-                    let mut out = Vec::with_capacity(inner.len() / 2);
-                    for i in (0..inner.len()).step_by(2) {
-                        let hi = from_hex_digit(inner[i])?;
-                        let lo = from_hex_digit(inner[i + 1])?;
-                        out.push((hi << 4) | lo);
-                    }
-                    let trimmed_len = out.iter().rposition(|&b| b != 0).map(|p| p + 1).unwrap_or(0);
-                    if trimmed_len > 32 {
-                        out.truncate(trimmed_len);
-                        return Some(out);
-                    }
-                }
-            }
-        }
-    }
-    None
-}
-
-fn from_hex_digit(b: u8) -> Option<u8> {
-    match b {
-        b'0'..=b'9' => Some(b - b'0'),
-        b'a'..=b'f' => Some(10 + b - b'a'),
-        b'A'..=b'F' => Some(10 + b - b'A'),
-        _ => None,
-    }
-}
-
-fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack.windows(needle.len()).position(|w| w == needle)
-}
-
-/// Extract issue date from PDF metadata or text
-fn extract_pdf_date(pdf_bytes: &[u8]) -> u64 {
-    // Lean scanner: look for /CreationDate (D:....) in the PDF bytes.
-    if let Some(pos) = find_subsequence(pdf_bytes, b"/CreationDate") {
-        let slice = &pdf_bytes[pos..(pos + 64).min(pdf_bytes.len())];
-        if let Some(dpos) = slice.iter().position(|&b| b == b'D' && slice.get(slice.iter().position(|&x| x==b'D').unwrap_or(0)+1) == Some(&b':')) {
-            let start = pos + dpos;
-            if let Some(end) = pdf_bytes[start..].iter().position(|&b| b == b')' || b == b' ' || b == b'\n' || b == b'\r') {
-                let date_bytes = &pdf_bytes[start..start + end];
-                if let Some(ts) = parse_pdf_date(date_bytes) {
-                    return ts;
-                }
-            }
-        }
-    }
-    // Fallback: search raw D:2024...
-    if let Some(pos) = find_subsequence(pdf_bytes, b"D:20") {
-        let cand = &pdf_bytes[pos..(pos + 20).min(pdf_bytes.len())];
-        if let Some(ts) = parse_pdf_date(cand) {
-            return ts;
-        }
-    }
-    0
-}
-
-fn parse_pdf_date(s: &[u8]) -> Option<u64> {
-    // Expect starting with D: or just the digits
-    let s = if s.starts_with(b"D:") { &s[2..] } else { s };
-    if s.len() < 14 { return None; }
-    let y = std::str::from_utf8(&s[0..4]).ok()?.parse::<i32>().ok()?;
-    let mo = std::str::from_utf8(&s[4..6]).ok()?.parse::<u32>().ok()?;
-    let d = std::str::from_utf8(&s[6..8]).ok()?.parse::<u32>().ok()?;
-    let h = std::str::from_utf8(&s[8..10]).ok()?.parse::<u32>().ok()?;
-    let mi = std::str::from_utf8(&s[10..12]).ok()?.parse::<u32>().ok()?;
-    let se = std::str::from_utf8(&s[12..14]).ok()?.parse::<u32>().ok()?;
-    // Very rough (no tz)
-    // 2000-01-01 as base rough calc not accurate, use chrono for better in host.
-    // For zk simplicity return a unix approx.
-    // For accuracy we can hardcode a simple formula or use chrono (already in deps).
-    use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-    let date = NaiveDate::from_ymd_opt(y, mo, d)?;
-    let time = NaiveTime::from_hms_opt(h, mi, se)?;
-    Some(NaiveDateTime::new(date, time).and_utc().timestamp() as u64)
-}
-
-/// Extract full text content from PDF
-fn extract_pdf_text(pdf_bytes: &[u8]) -> String {
-    // Lean implementation: scan for (text) Tj patterns in content streams.
-    // Sufficient for finding the mandated SEC phrase in most text PDFs.
-    let mut out = String::new();
-    let mut i = 0;
-    while i < pdf_bytes.len() {
-        if pdf_bytes[i] == b'(' {
-            // collect until unescaped )
-            let start = i + 1;
-            let mut j = start;
-            while j < pdf_bytes.len() {
-                if pdf_bytes[j] == b'\\' { j += 2; continue; }
-                if pdf_bytes[j] == b')' { break; }
-                j += 1;
-            }
-            if j < pdf_bytes.len() {
-                if let Ok(s) = std::str::from_utf8(&pdf_bytes[start..j]) {
-                    out.push_str(s);
-                    out.push(' ');
-                }
-                i = j + 1;
-                continue;
-            }
-        }
-        i += 1;
-    }
-    out
-}
-
-/// Check for SEC Rule 501(a) mandatory anchor phrase
-fn check_accredited_investor_phrase(text: &str) -> bool {
-    // Primary regex targets (both individual and joint):
-    // "net worth in excess of $1,000,000, excluding the value of their primary residence"
-    // "net worth with their spouse in excess of $1,000,000, excluding the value of their primary residence"
-    //
-    // Critical anchor: "excluding the value of their primary residence"
-    // This phrase is legally mandated by SEC Rule 501(a)
-    // Any legitimate CPA attestation MUST contain it
-    // If this phrase is absent, the document is legally invalid
-
-    let anchor = "excluding the value of their primary residence";
-    let threshold = "1,000,000";
-
-    text.contains(anchor) && text.contains(threshold)
-}
-
-/// Derive nullifier from DocuSign signature bytes
-/// Deterministic hash — same document always produces same nullifier
-fn derive_nullifier(pdf_bytes: &[u8]) -> [u8; 32] {
-    if let Some(sig) = extract_signature_bytes(pdf_bytes) {
-        let mut hasher = sha2::Sha256::new();
-        hasher.update(&sig);
-        let result = hasher.finalize();
-        let mut out = [0u8; 32];
-        out.copy_from_slice(&result);
-        return out;
-    }
-    // Fallback (dev only)
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(pdf_bytes);
-    let result = hasher.finalize();
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&result);
-    out
+    // Commit exact 108-byte canonical layout matching Soroban `ZkInvestorGate::encode_committed_values`:
+    //   wallet_hash (32B) || policy_id (4B LE) || issuer_hash (32B) || nullifier (32B) || doc_timestamp (8B LE)
+    io::commit_slice(&committed.to_bytes());
 }

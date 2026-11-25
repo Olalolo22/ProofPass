@@ -4,6 +4,8 @@ target/
 
 # Sensitive Data & Local PDFs
 *.pdf
+!sp1-zk-accredited-investor/script/pharmacist_license_mock.pdf
+!sp1-zk-accredited-investor/script/fixtures/pharmacist_license_mock_*.pdf
 .env
 .env.*
 

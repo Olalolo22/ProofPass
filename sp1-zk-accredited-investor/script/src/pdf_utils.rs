@@ -649,7 +649,7 @@ pub fn verify_pkcs7_signature_local(pdf_bytes: &[u8], trusted_root_der: &[u8]) -
         }
         if !md_ok {
             eprintln!("[sig] MessageDigest attribute check failed or not found");
-            // Don't hard-fail here — continue and let the RSA check be the gatekeeper.
+            return false;
         }
 
         // Re-encode signedAttributes as a DER SET (tag 0x31) for RSA verification.

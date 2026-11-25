@@ -1,7 +1,13 @@
 [workspace]
-members = ["program", "script"]
+members = ["core", "program", "script"]
 resolver = "2"
 
 [workspace.dependencies]
 sp1-zkvm = "6.3.1"
 sp1-sdk = "6.3.1"
+
+# Official SP1 v6.x precompile patches — accelerates SHA-256 and RSA/BigInt inside the RISC-V zkVM.
+[patch.crates-io]
+sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", tag = "patch-sha2-0.10.9-sp1-6.2.0" }
+rsa = { git = "https://github.com/sp1-patches/RustCrypto-RSA", tag = "patch-0.9.6-sp1-6.2.0" }
+crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag = "patch-0.5.5-sp1-6.2.0" }
