@@ -23,6 +23,22 @@ jobs:
         working-directory: soroban-zk-investor-gate
         run: cargo test
 
+  soroban-gated-markets:
+    name: Soroban Gated Market Contracts Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: soroban-gated-markets -> target
+      - name: Check no_std market contract libraries
+        working-directory: soroban-gated-markets
+        run: cargo check --workspace --lib
+      - name: Run cross-contract 3-market E2E tests
+        working-directory: soroban-gated-markets
+        run: cargo test --workspace
+
   zk-verification-core:
     name: SP1 ProofPass Core Crypto Tests
     runs-on: ubuntu-latest
