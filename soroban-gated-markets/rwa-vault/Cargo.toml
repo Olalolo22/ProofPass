@@ -1,0 +1,17 @@
+[package]
+name = "soroban-gated-rwa-vault"
+version = "0.1.0"
+edition = "2021"
+publish = false
+rust-version = "1.89.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+soroban-zk-investor-gate = { path = "../../soroban-zk-investor-gate" }
