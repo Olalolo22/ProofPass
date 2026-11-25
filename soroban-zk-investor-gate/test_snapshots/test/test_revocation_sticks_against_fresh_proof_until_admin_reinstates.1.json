@@ -122,8 +122,7 @@
                 },
                 {
                   "u32": 1
-                },
-                "void"
+                }
               ]
             }
           },
@@ -470,14 +469,6 @@
                 "map": [
                   {
                     "key": {
-                      "symbol": "doc_timestamp"
-                    },
-                    "val": {
-                      "u64": "1794996400"
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "expires_at"
                     },
                     "val": {
@@ -486,34 +477,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "issuer_hash"
-                    },
-                    "val": {
-                      "bytes": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "nullifier"
-                    },
-                    "val": {
-                      "bytes": "5656565656565656565656565656565656565656565656565656565656565656"
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "revoked"
                     },
                     "val": {
                       "bool": false
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "verified_at"
-                    },
-                    "val": {
-                      "u64": "1795000000"
                     }
                   }
                 ]

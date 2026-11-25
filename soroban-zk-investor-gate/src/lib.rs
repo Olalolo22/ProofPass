@@ -45,6 +45,7 @@ pub enum ZkGateError {
     InvalidDocumentTimestamp = 11,
     AssetNotRegistered = 12,
     CredentialRevoked = 13,
+    NotAuthorized = 14,
 }
 
 /// Typed storage keys — prevents storage collisions between entities.
@@ -57,6 +58,7 @@ pub enum DataKey {
     Policy(u32),
     ApprovedIssuer(u32, BytesN<32>),
     PolicyAsset(u32, Address),
+    PolicyAssets(u32),
     Nullifier(BytesN<32>),
     Credential(Address, u32),
     Revoked(Address, u32),
@@ -108,15 +110,13 @@ pub struct PolicyConfig {
     pub validity_secs: u64,
 }
 
-/// Stored per-(wallet, policy_id) credential pass.
+/// Privacy-minimized per-(wallet, policy_id) credential pass stored on-chain.
+/// Deliberately omits `issuer_hash`, `doc_timestamp`, and `nullifier` from public contract state
+/// so only the minimum compliance status (`expires_at`, `revoked`) is persisted.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
 pub struct Credential {
-    pub verified_at: u64,
-    pub doc_timestamp: u64,
     pub expires_at: u64,
-    pub issuer_hash: BytesN<32>,
-    pub nullifier: BytesN<32>,
     pub revoked: bool,
 }
 
@@ -127,8 +127,6 @@ pub struct CredentialVerified {
     pub investor: Address,
     #[topic]
     pub policy_id: u32,
-    pub issuer_hash: BytesN<32>,
-    pub doc_timestamp: u64,
     pub expires_at: u64,
 }
 
@@ -148,6 +146,16 @@ pub struct CredentialReinstated {
     pub investor: Address,
     #[topic]
     pub policy_id: u32,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuthorizationSynced {
+    #[topic]
+    pub investor: Address,
+    #[topic]
+    pub policy_id: u32,
+    pub assets_deauthorized: u32,
 }
 
 #[contract]
@@ -230,6 +238,8 @@ impl ZkInvestorGate {
 
     /// Admin-only: register or remove an `AUTH_REQUIRED` Stellar Asset Contract (SAC)
     /// that `policy_id` is authorized to toggle via `set_authorized`.
+    /// Maintains both an O(1) lookup key and the per-policy asset list used by
+    /// `revoke_credential` and `sync_authorization`.
     pub fn set_policy_asset(env: Env, policy_id: u32, asset: Address, enabled: bool) {
         let admin = Self::require_admin(&env);
         admin.require_auth();
@@ -238,13 +248,33 @@ impl ZkInvestorGate {
             panic_with_error!(&env, ZkGateError::PolicyNotFound);
         }
 
-        let key = DataKey::PolicyAsset(policy_id, asset);
+        let key = DataKey::PolicyAsset(policy_id, asset.clone());
+        let list_key = DataKey::PolicyAssets(policy_id);
+        let mut assets: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&list_key)
+            .unwrap_or_else(|| Vec::new(&env));
+
         if enabled {
             env.storage().persistent().set(&key, &true);
             Self::bump_persistent(&env, &key);
+            if !assets.iter().any(|a| a == asset) {
+                assets.push_back(asset);
+            }
         } else {
             env.storage().persistent().remove(&key);
+            let mut filtered = Vec::new(&env);
+            for existing in assets.iter() {
+                if existing != asset {
+                    filtered.push_back(existing);
+                }
+            }
+            assets = filtered;
         }
+
+        env.storage().persistent().set(&list_key, &assets);
+        Self::bump_persistent(&env, &list_key);
         Self::bump_instance(&env);
     }
 
@@ -354,13 +384,9 @@ impl ZkInvestorGate {
         env.storage().persistent().set(&nullifier_key, &true);
         Self::bump_persistent(&env, &nullifier_key);
 
-        // 12. Persist per-(investor, policy_id) credential pass and extend TTL.
+        // 12. Persist privacy-minimized per-(investor, policy_id) credential pass and extend TTL.
         let credential = Credential {
-            verified_at: current_time,
-            doc_timestamp: public_inputs.doc_timestamp,
             expires_at,
-            issuer_hash: public_inputs.issuer_hash.clone(),
-            nullifier: public_inputs.nullifier.clone(),
             revoked: false,
         };
         let credential_key = DataKey::Credential(investor.clone(), public_inputs.policy_id);
@@ -374,27 +400,40 @@ impl ZkInvestorGate {
             sac_client.set_authorized(&investor, &true);
         }
 
-        // 14. Emit structured verification event.
+        // 14. Emit privacy-minimized structured verification event.
         CredentialVerified {
             investor,
             policy_id: public_inputs.policy_id,
-            issuer_hash: public_inputs.issuer_hash,
-            doc_timestamp: public_inputs.doc_timestamp,
             expires_at,
         }
         .publish(&env);
     }
 
-    /// Admin-only: immediately revoke a wallet's Pass for `policy_id` and optionally
-    /// de-authorize its trustline on a registered `AUTH_REVOCABLE` SAC.
+    /// Authorize an additional registered `AUTH_REQUIRED` SAC trustline for an investor who
+    /// already holds a valid, non-revoked, non-expired Pass for `policy_id` (enabling one Pass
+    /// to unlock multiple regulated assets without generating a second ZK proof).
+    pub fn authorize_asset(env: Env, investor: Address, policy_id: u32, asset: Address) {
+        investor.require_auth();
+
+        if !Self::is_authorized(env.clone(), investor.clone(), policy_id) {
+            panic_with_error!(&env, ZkGateError::NotAuthorized);
+        }
+
+        let asset_key = DataKey::PolicyAsset(policy_id, asset.clone());
+        if !env.storage().persistent().get(&asset_key).unwrap_or(false) {
+            panic_with_error!(&env, ZkGateError::AssetNotRegistered);
+        }
+
+        let sac_client = soroban_sdk::token::StellarAssetClient::new(&env, &asset);
+        sac_client.set_authorized(&investor, &true);
+        Self::bump_instance(&env);
+    }
+
+    /// Admin-only: immediately revoke a wallet's Pass for `policy_id` and automatically
+    /// de-authorize its trustlines across ALL registered `AUTH_REVOCABLE` SACs for `policy_id`.
     /// Revocation persists under `DataKey::Revoked(investor, policy_id)` so the wallet cannot
     /// self-unban with another proof until an admin calls `reinstate_credential`.
-    pub fn revoke_credential(
-        env: Env,
-        investor: Address,
-        policy_id: u32,
-        rwa_asset_contract: Option<Address>,
-    ) {
+    pub fn revoke_credential(env: Env, investor: Address, policy_id: u32) {
         let admin = Self::require_admin(&env);
         admin.require_auth();
 
@@ -413,15 +452,7 @@ impl ZkInvestorGate {
             Self::bump_persistent(&env, &credential_key);
         }
 
-        if let Some(asset) = rwa_asset_contract {
-            let asset_key = DataKey::PolicyAsset(policy_id, asset.clone());
-            let asset_ok: bool = env.storage().persistent().get(&asset_key).unwrap_or(false);
-            if !asset_ok {
-                panic_with_error!(&env, ZkGateError::AssetNotRegistered);
-            }
-            let sac_client = soroban_sdk::token::StellarAssetClient::new(&env, &asset);
-            sac_client.set_authorized(&investor, &false);
-        }
+        Self::deauthorize_policy_assets(&env, &investor, policy_id);
 
         Self::bump_instance(&env);
         CredentialRevoked {
@@ -429,6 +460,27 @@ impl ZkInvestorGate {
             policy_id,
         }
         .publish(&env);
+    }
+
+    /// Permissionless sync: anyone (keeper, market contract, or user) can call this to sweep and
+    /// de-authorize all registered `AUTH_REVOCABLE` SAC trustlines for `(investor, policy_id)`
+    /// once the Pass has expired or been revoked. Does nothing and returns `0` if the Pass is
+    /// currently valid.
+    pub fn sync_authorization(env: Env, investor: Address, policy_id: u32) -> u32 {
+        if Self::is_authorized(env.clone(), investor.clone(), policy_id) {
+            return 0;
+        }
+        let count = Self::deauthorize_policy_assets(&env, &investor, policy_id);
+        if count > 0 {
+            Self::bump_instance(&env);
+            AuthorizationSynced {
+                investor,
+                policy_id,
+                assets_deauthorized: count,
+            }
+            .publish(&env);
+        }
+        count
     }
 
     /// Admin-only: lift a revocation hold on `(investor, policy_id)` so the wallet may submit a
@@ -519,6 +571,14 @@ impl ZkInvestorGate {
             .has(&DataKey::Nullifier(nullifier))
     }
 
+    /// Return all registered SAC asset addresses governed by `policy_id`.
+    pub fn get_policy_assets(env: Env, policy_id: u32) -> Vec<Address> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::PolicyAssets(policy_id))
+            .unwrap_or_else(|| Vec::new(&env))
+    }
+
     /// Return the configured contract admin address.
     pub fn admin(env: Env) -> Option<Address> {
         env.storage().instance().get(&DataKey::Admin)
@@ -531,6 +591,27 @@ impl ZkInvestorGate {
     }
 
     // ─── Internal Helpers ────────────────────────────────────────────────────────
+
+    fn deauthorize_policy_assets(env: &Env, investor: &Address, policy_id: u32) -> u32 {
+        let list_key = DataKey::PolicyAssets(policy_id);
+        let assets: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&list_key)
+            .unwrap_or_else(|| Vec::new(env));
+        let mut count = 0u32;
+        for asset in assets.iter() {
+            let sac_client = soroban_sdk::token::StellarAssetClient::new(env, &asset);
+            if sac_client.authorized(investor) {
+                sac_client.set_authorized(investor, &false);
+                count += 1;
+            }
+        }
+        if !assets.is_empty() {
+            Self::bump_persistent(env, &list_key);
+        }
+        count
+    }
 
     fn require_admin(env: &Env) -> Address {
         env.storage()

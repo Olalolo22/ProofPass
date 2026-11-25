@@ -208,18 +208,14 @@ fn test_revocation_sticks_against_fresh_proof_until_admin_reinstates() {
         env.storage().persistent().set(
             &DataKey::Credential(investor.clone(), POLICY_ACCREDITED_INVESTOR),
             &Credential {
-                verified_at: BASE_TIME,
-                doc_timestamp: BASE_TIME - 86_400,
                 expires_at: BASE_TIME - 86_400 + ONE_YEAR,
-                issuer_hash: issuer_a(&env),
-                nullifier: BytesN::from_array(&env, &[0x55u8; 32]),
                 revoked: false,
             },
         );
     });
     assert!(client.is_authorized(&investor, &POLICY_ACCREDITED_INVESTOR));
 
-    client.revoke_credential(&investor, &POLICY_ACCREDITED_INVESTOR, &None);
+    client.revoke_credential(&investor, &POLICY_ACCREDITED_INVESTOR);
     assert!(!client.is_authorized(&investor, &POLICY_ACCREDITED_INVESTOR));
     assert!(client.is_revoked(&investor, &POLICY_ACCREDITED_INVESTOR));
 
@@ -447,11 +443,7 @@ fn test_multi_pass_isolation_expiry_and_revocation_on_one_wallet() {
     let doc_ts = BASE_TIME - (100 * 86_400);
     let expires_at = doc_ts + ONE_YEAR;
     let accredited_cred = Credential {
-        verified_at: BASE_TIME,
-        doc_timestamp: doc_ts,
         expires_at,
-        issuer_hash: issuer_a(&env),
-        nullifier: BytesN::from_array(&env, &[0x11u8; 32]),
         revoked: false,
     };
     env.as_contract(&contract_id, || {
@@ -467,11 +459,7 @@ fn test_multi_pass_isolation_expiry_and_revocation_on_one_wallet() {
 
     // Same wallet earns a second independent Pass (LICENSED_PHARMACIST)
     let pharma_cred = Credential {
-        verified_at: BASE_TIME,
-        doc_timestamp: BASE_TIME - 86_400,
         expires_at: BASE_TIME - 86_400 + ONE_YEAR,
-        issuer_hash: issuer_b(&env),
-        nullifier: BytesN::from_array(&env, &[0x22u8; 32]),
         revoked: false,
     };
     env.as_contract(&contract_id, || {
@@ -486,7 +474,7 @@ fn test_multi_pass_isolation_expiry_and_revocation_on_one_wallet() {
     assert!(client.is_authorized(&wallet, &POLICY_LICENSED_PHARMACIST));
 
     // Revoking ACCREDITED_INVESTOR leaves LICENSED_PHARMACIST intact
-    client.revoke_credential(&wallet, &POLICY_ACCREDITED_INVESTOR, &None);
+    client.revoke_credential(&wallet, &POLICY_ACCREDITED_INVESTOR);
     assert!(!client.is_authorized(&wallet, &POLICY_ACCREDITED_INVESTOR));
     assert!(client.is_authorized(&wallet, &POLICY_LICENSED_PHARMACIST));
     assert!(client
@@ -534,43 +522,118 @@ fn test_g_account_address_xdr_matches_canonical_44_byte_layout() {
     assert_eq!(client.compute_wallet_hash(&g_addr), expected_hash);
 }
 
+fn deploy_gated_sac<'a>(
+    env: &'a Env,
+    gate_id: &Address,
+) -> (Address, soroban_sdk::token::StellarAssetClient<'a>) {
+    let sac = env.register_stellar_asset_contract_v2(gate_id.clone());
+    sac.issuer()
+        .set_flag(soroban_sdk::testutils::IssuerFlags::RequiredFlag);
+    sac.issuer()
+        .set_flag(soroban_sdk::testutils::IssuerFlags::RevocableFlag);
+    let addr = sac.address();
+    let client = soroban_sdk::token::StellarAssetClient::new(env, &addr);
+    (addr, client)
+}
+
 #[test]
-fn test_revoke_credential_flips_sac_authorization_to_false() {
+fn test_revoke_deauthorizes_all_registered_policy_assets_and_skips_unopened() {
     let env = Env::default();
     let (contract_id, client, _) = setup_initialized_gate(&env);
     let wallet = Address::generate(&env);
 
-    // Deploy a real Stellar Asset Contract administered by ZkInvestorGate with AUTH_REQUIRED + AUTH_REVOCABLE
-    let sac = env.register_stellar_asset_contract_v2(contract_id.clone());
-    sac.issuer().set_flag(soroban_sdk::testutils::IssuerFlags::RequiredFlag);
-    sac.issuer().set_flag(soroban_sdk::testutils::IssuerFlags::RevocableFlag);
-    let sac_addr = sac.address();
-    let sac_client = soroban_sdk::token::StellarAssetClient::new(&env, &sac_addr);
+    // Deploy 3 real AUTH_REQUIRED + AUTH_REVOCABLE SACs under Policy 1
+    let (stbill_addr, stbill_client) = deploy_gated_sac(&env, &contract_id);
+    let (syield_addr, syield_client) = deploy_gated_sac(&env, &contract_id);
+    let (sunused_addr, sunused_client) = deploy_gated_sac(&env, &contract_id);
 
-    // Register SAC under POLICY_ACCREDITED_INVESTOR and seed an active credential + authorized trustline
-    client.set_policy_asset(&POLICY_ACCREDITED_INVESTOR, &sac_addr, &true);
-    assert!(!sac_client.authorized(&wallet));
-    sac_client.set_authorized(&wallet, &true);
-    assert!(sac_client.authorized(&wallet));
+    client.set_policy_asset(&POLICY_ACCREDITED_INVESTOR, &stbill_addr, &true);
+    client.set_policy_asset(&POLICY_ACCREDITED_INVESTOR, &syield_addr, &true);
+    client.set_policy_asset(&POLICY_ACCREDITED_INVESTOR, &sunused_addr, &true);
+    assert_eq!(client.get_policy_assets(&POLICY_ACCREDITED_INVESTOR).len(), 3);
 
-    env.as_contract(&contract_id, || {
-        env.storage().persistent().set(
-            &DataKey::Credential(wallet.clone(), POLICY_ACCREDITED_INVESTOR),
-            &Credential {
-                verified_at: BASE_TIME,
-                doc_timestamp: BASE_TIME - 86_400,
-                expires_at: BASE_TIME - 86_400 + ONE_YEAR,
-                issuer_hash: issuer_a(&env),
-                nullifier: BytesN::from_array(&env, &[0x77u8; 32]),
-                revoked: false,
-            },
-        );
-    });
+    // Verify once (authorizing sTBILL), then unlock sYIELD via `authorize_asset` using the same Pass.
+    // Leave sUNUSED untouched to prove revocation safely skips unopened/unauthorized trustlines.
+    let inputs = make_inputs(
+        &env,
+        &client,
+        &wallet,
+        POLICY_ACCREDITED_INVESTOR,
+        issuer_a(&env),
+        0x77,
+        BASE_TIME - 86_400,
+    );
+    client.verify_and_authorize(&dummy_proof(&env), &inputs, &wallet, &Some(stbill_addr.clone()));
+    client.authorize_asset(&wallet, &POLICY_ACCREDITED_INVESTOR, &syield_addr);
 
-    assert!(client.is_authorized(&wallet, &POLICY_ACCREDITED_INVESTOR));
-    client.revoke_credential(&wallet, &POLICY_ACCREDITED_INVESTOR, &Some(sac_addr));
+    assert!(stbill_client.authorized(&wallet));
+    assert!(syield_client.authorized(&wallet));
+    assert!(!sunused_client.authorized(&wallet));
+
+    // Admin revokes wallet -> BOTH sTBILL and sYIELD are flipped off in one call; sUNUSED doesn't fail!
+    client.revoke_credential(&wallet, &POLICY_ACCREDITED_INVESTOR);
     assert!(!client.is_authorized(&wallet, &POLICY_ACCREDITED_INVESTOR));
-    assert!(!sac_client.authorized(&wallet));
+    assert!(!stbill_client.authorized(&wallet));
+    assert!(!syield_client.authorized(&wallet));
+    assert!(!sunused_client.authorized(&wallet));
+
+    // Trying to authorize another asset after revocation MUST fail with NotAuthorized
+    let res = client.try_authorize_asset(&wallet, &POLICY_ACCREDITED_INVESTOR, &sunused_addr);
+    assert_zk_error(res, ZkGateError::NotAuthorized);
+}
+
+#[test]
+fn test_permissionless_sync_authorization_deauthorizes_after_expiry() {
+    let env = Env::default();
+    let (contract_id, client, _) = setup_initialized_gate(&env);
+    let wallet = Address::generate(&env);
+
+    let (stbill_addr, stbill_client) = deploy_gated_sac(&env, &contract_id);
+    let (syield_addr, syield_client) = deploy_gated_sac(&env, &contract_id);
+    client.set_policy_asset(&POLICY_ACCREDITED_INVESTOR, &stbill_addr, &true);
+    client.set_policy_asset(&POLICY_ACCREDITED_INVESTOR, &syield_addr, &true);
+
+    let doc_ts = BASE_TIME - 86_400;
+    let inputs = make_inputs(
+        &env,
+        &client,
+        &wallet,
+        POLICY_ACCREDITED_INVESTOR,
+        issuer_a(&env),
+        0x88,
+        doc_ts,
+    );
+    client.verify_and_authorize(&dummy_proof(&env), &inputs, &wallet, &Some(stbill_addr));
+    client.authorize_asset(&wallet, &POLICY_ACCREDITED_INVESTOR, &syield_addr);
+    assert!(stbill_client.authorized(&wallet));
+    assert!(syield_client.authorized(&wallet));
+
+    // Before expiry: permissionless sync does nothing and leaves both trustlines open
+    assert_eq!(
+        client.sync_authorization(&wallet, &POLICY_ACCREDITED_INVESTOR),
+        0
+    );
+    assert!(stbill_client.authorized(&wallet));
+    assert!(syield_client.authorized(&wallet));
+
+    // Advance ledger to expiry (`doc_ts + ONE_YEAR`): Pass expires, trustlines are still stale-open
+    set_ledger_time(&env, doc_ts + ONE_YEAR);
+    assert!(!client.is_authorized(&wallet, &POLICY_ACCREDITED_INVESTOR));
+    assert!(stbill_client.authorized(&wallet));
+
+    // Anyone can call `sync_authorization` (no auth required!) -> sweeps both trustlines closed!
+    assert_eq!(
+        client.sync_authorization(&wallet, &POLICY_ACCREDITED_INVESTOR),
+        2
+    );
+    assert!(!stbill_client.authorized(&wallet));
+    assert!(!syield_client.authorized(&wallet));
+
+    // Idempotent second call returns 0
+    assert_eq!(
+        client.sync_authorization(&wallet, &POLICY_ACCREDITED_INVESTOR),
+        0
+    );
 }
 
 /// Verifies that the canonical 108-byte SP1 v2 commitment layout produces deterministic,
