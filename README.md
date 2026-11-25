@@ -31,10 +31,13 @@ For full transparency with judges and reviewers:
 
 - **Prior Work (June – Nov 11, 2026):** Core ProofPass concept and initial SP1 zkVM prototype created for *Stellar Hacks: Real-World ZK (June 2026)*. Updated on Nov 11, 2026 (`4e097ce`–`fc6e2ee`) with SP1 v6 5-signal BN254 pairing verification live on Stellar Testnet Protocol 26 (`CB5MZK...`), host-side PDF/CMS utilities (`pdf_utils.rs`), and an initial Freighter wallet verification UI (`frontend/`).
 - **Build Week Scope (Nov 25 – Nov 30, 2026):**
-  - **In-guest ZK cryptographic hardening:** Full `/ByteRange` SHA-256 + RSA PKCS#1 v1.5 signature verification inside the SP1 guest (using patched precompiles), signed PKCS#7 `signingTime` (`doc_timestamp`) extraction instead of untrusted prover timestamps, signer identity commitment (`issuer_hash`), and multi-policy `policy_id` support.
-  - **Prover speed optimization:** SP1 crypto precompiles, PDF byte-offset hints, and GPU (`groth16-cuda`) proving acceleration.
-  - **Multi-policy `ZkInvestorGate` v2:** Multi-pass storage (`(wallet, policy_id) -> Credential`), approved issuer allowlists per `policy_id`, document-date-anchored expiry (`doc_timestamp + validity`), one-time admin init guard, `require_auth()` wallet binding, `AUTH_REVOCABLE` revocation, events, and automated CI tests.
+  - **In-guest ZK cryptographic hardening:** Full `/ByteRange` SHA-256 + RSA PKCS#1 v1.5 signature + X.509 chain verification (including signing-date validity windows, CA `BasicConstraints`/`KeyUsage`, and `SubjectKeyIdentifier` lookup) inside the SP1 guest (using patched precompiles), non-malleable nullifier derived from the deterministic RSA signature value, signed PKCS#7 `signingTime` (`doc_timestamp`) extraction, affirmative full-sentence policy checks, signer identity commitment (`issuer_hash`), and multi-policy `policy_id` support.
+  - **Prover speed optimization:** SP1 crypto precompiles, PDF byte-offset hints, and GPU (`SP1_PROVER=cuda --features cuda`) proving acceleration.
+  - **Multi-policy `ZkInvestorGate` v2:** Atomic deploy-time `__constructor`, multi-pass storage (`(wallet, policy_id) -> Credential`), approved issuer allowlists per `policy_id`, document-date-anchored expiry (`doc_timestamp + validity`), `require_auth()` wallet binding, sticky `AUTH_REVOCABLE` revocation with explicit admin reinstatement, events, and automated CI tests.
   - **Live Gated Cross-Border Markets:** Multiple regulated Stellar Testnet markets gated by the same `ZkInvestorGate` (capital-markets `ACCREDITED_INVESTOR` pools plus a clearly labeled Testnet mock-issuer `LICENSED_PHARMACIST` B2B USDC checkout demonstrating strict policy isolation).
+- **Testnet vs. Production Issuer Trust Model:**
+  - On Testnet, Policy 1 (`ACCREDITED_INVESTOR`) trusts DocuSign's real AATL seal (`CN=DocuSign, Inc.` under DigiCert Trusted Root G4) so anyone can test with real-world DocuSign documents today, and Policy 2 (`LICENSED_PHARMACIST`) uses a clearly labeled Testnet mock Pharmacy Board CA (`certs/testnet_mock_pharmacy_root.der`).
+  - In production, each policy allowlists specific licensed issuers' certificates — such as a CPA firm, VerifyInvestor, or a national pharmacy board — under the standard AATL root bundle; the verification architecture doesn't change, only the on-chain allowlist entry does.
 
 ---
 
