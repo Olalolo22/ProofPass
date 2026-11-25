@@ -615,11 +615,12 @@ impl ZkInvestorGate {
         let mut count = 0u32;
         for asset in assets.iter() {
             let sac_client = soroban_sdk::token::StellarAssetClient::new(env, &asset);
-            // Use `try_*` so real Stellar G-accounts with a missing or closed trustline
-            // (`ContractError::TrustlineMissingError`) never revert revocation or expiry sync.
-            if matches!(sac_client.try_authorized(investor), Ok(Ok(true)))
-                && matches!(sac_client.try_set_authorized(investor, &false), Ok(Ok(())))
-            {
+            // Use `try_authorized` so real Stellar G-accounts with a missing or closed trustline
+            // (`ContractError::TrustlineMissingError`) are safely skipped. Once confirmed authorized,
+            // call `set_authorized(false)` directly so misconfigurations (e.g. lost SAC admin or
+            // missing AUTH_REVOCABLE) fail loudly rather than silently leaving a trustline live.
+            if matches!(sac_client.try_authorized(investor), Ok(Ok(true))) {
+                sac_client.set_authorized(investor, &false);
                 count += 1;
             }
         }
