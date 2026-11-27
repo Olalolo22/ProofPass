@@ -227,7 +227,7 @@ export function sampleProof(policyId = 1) {
   const pid = policyId === 2 ? 2 : 1;
   return {
     ...BASE_POINTS,
-    program_vkey_hash: '0x00824905e7cd4cabf8c6a8c27f646c867b364aaa25f9d4d15a12e5d96390ad05',
+    program_vkey_hash: '0x00ab001bab34c8d8f24efa0a05d6d633db29310ef8a6888cc24123ceb5c72a66',
     public_inputs: {
       wallet_hash: '0xd5e3ef90b1e33f50282e69fad818c1527a044c6340e6d4245a832b099dfdd9b8',
       policy_id: pid,

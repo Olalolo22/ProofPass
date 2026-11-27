@@ -48,7 +48,7 @@ For full transparency with judges and reviewers:
 2. SP1 zkVM runs locally — validates the PDF signature structure, confirms CPA attestation recency (≤365-day window), matches the statutory SEC anchor phrase, and derives a deterministic nullifier
 3. STARK proof is wrapped into Groth16 BN254 — raw STARKs exceed Soroban's WASM instruction limit; Protocol 26's native BN254 host functions handle the pairing checks at the network level
 4. Investor submits the proof via Freighter wallet to the Soroban contract
-5. Contract verifies the SP1 v6 5-signal Groth16 proof, checks proof submission freshness (≤90 days from generation), stores the nullifier (replay prevention), records a 5-year credential, and calls `set_authorized` on the Stellar Asset Contract
+5. Contract verifies the SP1 v6 Groth16 proof, checks wallet binding, approved issuer, and document-date expiry (`doc_timestamp + validity_secs`, 365 days on Testnet), burns the one-time nullifier, stores a privacy-minimized credential (`expires_at`, `revoked`), and calls `set_authorized` on registered policy assets
 6. `AUTH_REQUIRED` trustline flips — investor can now access the tokenized RWA yield pool
 
 The document never leaves the investor's machine.

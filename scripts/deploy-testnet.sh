@@ -19,7 +19,7 @@ NETWORK="${NETWORK:-testnet}"
 ADMIN="${ADMIN:-pp-admin}"
 USDC_ISSUER_KEY="${USDC_ISSUER_KEY:-pp-usdc-issuer}"
 STBILL_ISSUER_KEY="${STBILL_ISSUER_KEY:-pp-stbill-issuer}"
-PROGRAM_VKEY_HASH="${PROGRAM_VKEY_HASH:-0x00824905e7cd4cabf8c6a8c27f646c867b364aaa25f9d4d15a12e5d96390ad05}"
+PROGRAM_VKEY_HASH="${PROGRAM_VKEY_HASH:-0x00ab001bab34c8d8f24efa0a05d6d633db29310ef8a6888cc24123ceb5c72a66}"
 PROGRAM_VKEY_HASH="${PROGRAM_VKEY_HASH#0x}"
 
 # Issuer fingerprints (sha256 of the signer leaf certificate) — see README "Issuer trust model".

@@ -11,6 +11,7 @@ target/
 
 # SP1 & ZK Proof Artifacts
 proof.json
+proof_*.json
 proof-with-pis.json
 *.fixture
 *.proof
