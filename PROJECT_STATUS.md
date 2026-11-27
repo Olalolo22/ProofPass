@@ -2,23 +2,24 @@
 
 **Project:** SP1 v6 Groth16 Proof → Soroban `ZkInvestorGate` → Stellar RWA SAC Authorization  
 **Branch:** `main`  
-**Last Updated:** 2026-11-23  
-**Status:** Proof generation ✅ | Contract deployed ✅ | On-chain BN254 verification ✅ | Live Freighter Testnet frontend ✅
+**Last Updated:** 2026-11-27  
+**Status:** v2 SP1 proofs generated & verified ✅ | v2 Gate & 3 Gated Markets live on Testnet ✅ | Multi-pass frontend wired ✅
 
 ---
 
 ## 1. Overview & Milestones Achieved
-1. **SP1 v6 Groth16 proof generation:** Generates real SP1 Groth16 BN254 proofs over the `zk-accredited-investor` Rust guest program validating DocuSign-signed CPA accreditation letters (SEC Rule 501(a) anchor phrase, 365-day attestation recency window, `/Contents` signature extraction, deterministic nullifier).
-2. **Soroban BN254 compatibility (SP1 v5 & v6):** Fixed the July 2026 `InvalidZKProof` pairing mismatch in commit `b71eb17` (Nov 11, 2026). SP1 v6 Groth16 circuits expose a **5-signal** public input layout (`ic.len() == 6`: `[program_vkey, committed_values_digest, exit_code, vk_root, nonce]`, with `SP1_V6_VK_ROOT = 0x002f850ee998974d6cc00e50cd0814b098c05bfade466d28573240d057f25352`) rather than SP1 v5's 2-signal layout (`ic.len() == 3`). `ZkInvestorGate::build_sp1_public_inputs` now supports both layouts and passes the real-proof BN254 pairing check locally (`test_real_sp1_groth16_proof`) and live on Stellar Testnet.
-3. **Live Soroban Investor Gate on Stellar Testnet (Protocol 26):**
-   - Verifies SP1 Groth16 proofs on-chain using Protocol 26 native BN254 host functions.
-   - Enforces nullifier uniqueness in persistent storage with TTL extension (replay protection).
-   - Enforces on-chain proof submission freshness (90-day window against ledger time).
-   - Stores a 5-year `Credential` entry in persistent storage with TTL extension.
-   - Calls `set_authorized(&investor, &true)` on the target RWA Stellar Asset Contract (SAC) to flip `AUTH_REQUIRED` trustlines.
+1. **SP1 v6 Groth16 multi-policy prover (`sp1-zk-accredited-investor/`):** Full in-guest verification of PDF `/ByteRange`, CMS `messageDigest`, signed PKCS#7 `signingTime`, RSA PKCS#1 v1.5 signature, X.509 certificate chain to policy-scoped roots, full affirmative policy sentence match, wallet binding, and non-malleable nullifier (`sha256(signer_info.signature)`). One frozen guest binary covers both Policy 1 (Accredited Investor) and Policy 2 (Licensed Pharmacist).
+2. **Hardened `ZkInvestorGate` v2 (`soroban-zk-investor-gate/`):**
+   - Atomic deploy-time `__constructor(admin, vk, program_vkey_hash)` + admin `update_program_vkey`.
+   - Verifies SP1 v6 Groth16 proofs on-chain using Protocol 26 native BN254 host functions.
+   - Enforces wallet binding, per-policy issuer allowlist, one-time nullifiers, and document-date-anchored expiry (`doc_timestamp + validity_secs`, 365 days on Testnet — replaces the v1 90-day / 5-year model).
+   - Privacy-minimized on-chain `Credential { expires_at, revoked }` storage and events, sticky revocation (`revoke_credential` / `reinstate_credential`), permissionless `sync_authorization`, and safe G-account trustline handling.
+3. **Three Live Gated Markets (`soroban-gated-markets/`):**
+   - **Market 1 (`sTBILL` Treasury Vault):** Policy 1 + `AUTH_REQUIRED`/`AUTH_REVOCABLE` `sTBILL` shares.
+   - **Market 2 (`sYIELD` Cross-Border Yield Vault, 8.4% APY):** Policy 1 ("Same Pass, Second Protocol") with safe principal `redeem`.
+   - **Market 3 (Regulated Medical Supply B2B Checkout):** Policy 2 ("Strict Policy Isolation").
 4. **Live Freighter + Soroban Testnet Frontend (`frontend/`):**
-   - Wired directly to the live Testnet `ZkInvestorGate` contract and USDC SAC (`USE_MOCK: false` in `frontend/proofpass-api.js`).
-   - Supports Freighter wallet connection (`requestAccess` + `getAddress` fallback), Demo Mode fallback, bundled SP1 v6 sample proof or custom `proof.json` upload, transaction simulation/signing/polling, and mobile-responsive controls (`31c9031`, `9f779c8`, `fc6e2ee`).
+   - Wired directly to the live v2 Testnet Gate + 3 Markets (`USE_MOCK: false` in `frontend/proofpass-api.js`) with full stateful Demo Mode fallback.
 
 ---
 
@@ -26,19 +27,21 @@
 
 | Component | Testnet Identifier | Explorer Link |
 |---|---|---|
-| **`ZkInvestorGate` Contract** | `CB5MZKQG4KKAJS4HZTJNJE3FNAPHCVUR3QSN6QZMTPMMRRIKRW3FCYP7` | [View Contract](https://stellar.expert/explorer/testnet/contract/CB5MZKQG4KKAJS4HZTJNJE3FNAPHCVUR3QSN6QZMTPMMRRIKRW3FCYP7) |
-| **RWA Asset (USDC SAC)** | `CDD4G3P6IXHJ7WZUZLF6KDULQZ5HDTZR2QG56V7LDP6YDMPT3I3MZ7SF` | [View Asset Contract](https://stellar.expert/explorer/testnet/contract/CDD4G3P6IXHJ7WZUZLF6KDULQZ5HDTZR2QG56V7LDP6YDMPT3I3MZ7SF) |
-| **Gate Initialization Tx** | `d0ea7f11273400cde8c7216f029bc0d6f0ce5e02df2a6ec509e6f86e3c9ea3c4` | [View Init Tx](https://stellar.expert/explorer/testnet/tx/d0ea7f11273400cde8c7216f029bc0d6f0ce5e02df2a6ec509e6f86e3c9ea3c4) |
-| **Live BN254 Verification Tx** | `c512e0a7c462a832b81998117e262894d08aaf890a468f44a94646666da87b19` | [View Verify Tx](https://stellar.expert/explorer/testnet/tx/c512e0a7c462a832b81998117e262894d08aaf890a468f44a94646666da87b19) |
+| **`ZkInvestorGate` v2** | `CA2EX2NHHNZYLHCRYL5N7LLDMCPJGB2ERJ3XFTGVJNTACLLQ2GBXLSRS` | [View Contract](https://stellar.expert/explorer/testnet/contract/CA2EX2NHHNZYLHCRYL5N7LLDMCPJGB2ERJ3XFTGVJNTACLLQ2GBXLSRS) |
+| **Testnet USDC SAC** | `CCZ7OZ4IVSPIYEM4IBE2GF36HWZIZBLJCGLFK3WUUYUQL66EKGWEGUYQ` | [View Asset Contract](https://stellar.expert/explorer/testnet/contract/CCZ7OZ4IVSPIYEM4IBE2GF36HWZIZBLJCGLFK3WUUYUQL66EKGWEGUYQ) |
+| **`sTBILL` SAC (`AUTH_REQUIRED` + `AUTH_REVOCABLE`)** | `CAABDRDLOY6QFON2D5HE3EN6WEM5TCTHVYGLEXIM7OC7H52DWF6B3MK5` | [View Asset Contract](https://stellar.expert/explorer/testnet/contract/CAABDRDLOY6QFON2D5HE3EN6WEM5TCTHVYGLEXIM7OC7H52DWF6B3MK5) |
+| **Market 1 (`sTBILL` Treasury Vault)** | `CARQIVAXOS4RA2YIBHT6DPVECNZTXMJ7ZVFRUT2SYX2QB4VXVB5D6S37` | [View Contract](https://stellar.expert/explorer/testnet/contract/CARQIVAXOS4RA2YIBHT6DPVECNZTXMJ7ZVFRUT2SYX2QB4VXVB5D6S37) |
+| **Market 2 (`sYIELD` Cross-Border Yield Vault)** | `CBH2KI7D7SP3YTRGF4LJFOFF7ASZSCXZECVE4PVESBMGSCGUTET6XNJX` | [View Contract](https://stellar.expert/explorer/testnet/contract/CBH2KI7D7SP3YTRGF4LJFOFF7ASZSCXZECVE4PVESBMGSCGUTET6XNJX) |
+| **Market 3 (Regulated Medical Supply Checkout)** | `CCDFM4P5CS56BAVXUFBPD6AC4B7IVMI7MX5SEXMWSZVAK2KOAZERNPHN` | [View Contract](https://stellar.expert/explorer/testnet/contract/CCDFM4P5CS56BAVXUFBPD6AC4B7IVMI7MX5SEXMWSZVAK2KOAZERNPHN) |
+| **v2 `update_program_vkey` Tx** | `a27396f86c06c741764721dc80afff5e3dbbea285cc06132490c86d6cb091a5a` | [View Tx](https://stellar.expert/explorer/testnet/tx/a27396f86c06c741764721dc80afff5e3dbbea285cc06132490c86d6cb091a5a) |
 
-### Verified SP1 v6 Artifacts
-- **Program VK Hash:** `0x00824905e7cd4cabf8c6a8c27f646c867b364aaa25f9d4d15a12e5d96390ad05`
+### Verified SP1 v6 Artifacts (v2 Frozen Guest)
+- **Program VK Hash (v2, covers Policy 1 & Policy 2):** `0x00ab001bab34c8d8f24efa0a05d6d633db29310ef8a6888cc24123ceb5c72a66`
 - **SP1 v6 `vk_root`:** `0x002f850ee998974d6cc00e50cd0814b098c05bfade466d28573240d057f25352`
 - **Groth16 VK binary:** `groth16_vk.bin` (repo root)
-- **Verified proof public outputs:**
-  - Wallet (`proofpass_wallet_raw`): `0xd5e3ef90b1e33f50282e69fad818c1527a044c6340e6d4245a832b099dfdd9b8`
-  - Nullifier: `0x1d345891df3edb8c58ac57900cf6c781912c5dec0684e0a65c3b0e5d25a706d4`
-  - Timestamp: `1794333989`
+- **Allowlisted Issuer Hashes:**
+  - Policy 1 (DocuSign AATL Testnet stand-in): `3da288f764431cb9c5898ccf3028f5f295bfb5f1ee7045a1f42c7cecdcf09600`
+  - Policy 2 (Testnet Mock Pharmacy Board): `2bb2c46d57721e78fa8d87d74e7ce47b0a828753de6c17ae00b4b9b81491b6cc`
 
 ---
 
@@ -46,11 +49,11 @@
 
 | Component | Path | Status | Notes |
 |---|---|---|---|
-| **Soroban Gate Contract** | `soroban-zk-investor-gate/src/lib.rs` | ✅ Live & tested | Protocol 26 BN254 pairing check (SP1 v5 & v6), replay nullifier, 90-day proof freshness, 5-year credential, SAC `set_authorized` |
-| **Contract Unit Tests** | `soroban-zk-investor-gate/src/test.rs` | ✅ 8/8 tests | Covers init, auth lookup, uninitialized guard, 90-day expiry & boundary, nullifier replay, double-init behavior, and real SP1 v6 Groth16 BN254 pairing check |
-| **SP1 zkVM Guest** | `sp1-zk-accredited-investor/program/src/main.rs` | ✅ Builds & proves | Checks 365-day CPA attestation window, SEC Rule 501(a) anchor phrase, `/Contents` signature extraction, nullifier derivation |
-| **SP1 Prover Host & PDF Utils** | `sp1-zk-accredited-investor/script/` | ✅ Generates proofs | Offline ByteRange/CMS/X.509 PDF utilities (`pdf_utils.rs`) + SP1 Groth16 prover (`main.rs`) |
-| **Web Landing + Demo App** | `frontend/` | ✅ Live Testnet wired | Freighter wallet connect, Demo Mode fallback, Soroban RPC submission/polling, mobile responsive, Vercel routing (`vercel.json`) |
+| **Soroban Gate Contract v2** | `soroban-zk-investor-gate/src/lib.rs` | ✅ Live & tested | Protocol 26 BN254 pairing, multi-pass isolation, 365-day document-date expiry, sticky revocation, permissionless sync |
+| **Gate Unit Tests** | `soroban-zk-investor-gate/src/test.rs` | ✅ 18/18 tests | Includes real SP1 v6 BN254 pairing check, real G-account missing-trustline revocation/sync, multi-asset revocation, single-policy asset guard |
+| **Gated Market Contracts** | `soroban-gated-markets/` | ✅ Live & tested (6/6) | `GatedRwaVault` + `GatedMedicalCheckout`, including 5-phase 3-market E2E against real `ZkInvestorGate` |
+| **SP1 zkVM Guest & Core** | `sp1-zk-accredited-investor/` | ✅ Builds & proves (15/15) | Full in-guest PDF/CMS/RSA/X.509 verification; 4 fresh v2 Groth16 proofs generated & independently verified |
+| **Web Landing + Multi-Pass App** | `frontend/` | ✅ Live Testnet wired | Freighter + Demo Mode, 2 Pass cards, replay-attack demo, 3 live gated markets, admin revoke/reinstate/sync drawer |
 
 ---
 
