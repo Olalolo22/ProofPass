@@ -6,7 +6,7 @@
 #
 # Needs: stellar CLI (>= 23), python3, a funded admin identity.
 #
-#   stellar keys generate --global pp-admin --network testnet --fund
+#   stellar keys generate pp-admin --network testnet --fund
 #   ADMIN=pp-admin ./scripts/deploy-testnet.sh
 #
 # Optional env:
@@ -40,7 +40,7 @@ invoke() { local id="$1" src="$2"; shift 2; stellar contract invoke --id "$id" -
 ADMIN_ADDR="$(stellar keys address "$ADMIN")"
 
 for k in "$USDC_ISSUER_KEY" "$STBILL_ISSUER_KEY"; do
-  stellar keys address "$k" >/dev/null 2>&1 || stellar keys generate --global "$k" --network "$NETWORK" --fund
+  stellar keys address "$k" >/dev/null 2>&1 || stellar keys generate "$k" --network "$NETWORK" --fund
 done
 USDC_ISSUER="$(stellar keys address "$USDC_ISSUER_KEY")"
 STBILL_ISSUER="$(stellar keys address "$STBILL_ISSUER_KEY")"
@@ -73,7 +73,7 @@ invoke "$GATE_ID" "$ADMIN" set_approved_issuer --policy_id 2 --issuer_hash "$ISS
 step "5/8 Deploy Market 1 (sTBILL vault), Market 2 (yield vault), Market 3 (medical checkout)"
 M1_ID="$(stellar contract deploy --wasm "$VAULT_WASM" --source "$ADMIN" --network "$NETWORK" -- \
   --admin "$ADMIN_ADDR" --gate_contract "$GATE_ID" --policy_id 1 --deposit_token "$USDC_SAC" \
-  --share_token "$STBILL_SAC" --apy_bps 520 --name "Permissioned sTBILL Treasury Vault")"
+  --share_token "\"$STBILL_SAC\"" --apy_bps 520 --name "Permissioned sTBILL Treasury Vault")"
 M2_ID="$(stellar contract deploy --wasm "$VAULT_WASM" --source "$ADMIN" --network "$NETWORK" -- \
   --admin "$ADMIN_ADDR" --gate_contract "$GATE_ID" --policy_id 1 --deposit_token "$USDC_SAC" \
   --apy_bps 840 --name "Cross-Border Yield Vault")"

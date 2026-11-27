@@ -25,17 +25,17 @@ export const config = {
   rpcUrl: 'https://soroban-testnet.stellar.org',
   explorerBase: 'https://stellar.expert/explorer/testnet',
 
-  // ---- v2 Testnet contract IDs (fill in from scripts/deploy-testnet.sh) -----
-  gateContractId: '',
-  usdcAssetContract: '',     // SAC of the USDC-like deposit asset
+  // ---- v2 Testnet contract IDs (deployed via scripts/deploy-testnet.sh) ----
+  gateContractId: 'CA2EX2NHHNZYLHCRYL5N7LLDMCPJGB2ERJ3XFTGVJNTACLLQ2GBXLSRS',
+  usdcAssetContract: 'CCZ7OZ4IVSPIYEM4IBE2GF36HWZIZBLJCGLFK3WUUYUQL66EKGWEGUYQ',
   usdcCode: 'USDC',
-  usdcIssuer: '',
-  stbillAssetContract: '',   // SAC of AUTH_REQUIRED sTBILL (administered by the gate)
+  usdcIssuer: 'GB7ZD7A4LMJPAOM5G36CINXD77LARUPS7TLUNGL47FBLU3DYVNFNGCCN',
+  stbillAssetContract: 'CAABDRDLOY6QFON2D5HE3EN6WEM5TCTHVYGLEXIM7OC7H52DWF6B3MK5',
   stbillCode: 'sTBILL',
-  stbillIssuer: '',
-  market1VaultId: '',        // GatedRwaVault (sTBILL)
-  market2VaultId: '',        // GatedRwaVault (sYIELD)
-  market3CheckoutId: '',     // GatedMedicalCheckout
+  stbillIssuer: 'GBMFZY4DSXVHFJH2J3DNKWW2SH3S3CMKQJYNRTC7CQLK5BZRJT3CQZ7D',
+  market1VaultId: 'CARQIVAXOS4RA2YIBHT6DPVECNZTXMJ7ZVFRUT2SYX2QB4VXVB5D6S37',
+  market2VaultId: 'CBH2KI7D7SP3YTRGF4LJFOFF7ASZSCXZECVE4PVESBMGSCGUTET6XNJX',
+  market3CheckoutId: 'CCDFM4P5CS56BAVXUFBPD6AC4B7IVMI7MX5SEXMWSZVAK2KOAZERNPHN',
 
   // Token decimals used by the SACs (Stellar default = 7).
   decimals: 7,
@@ -311,7 +311,7 @@ async function sdkAndServer() {
 }
 
 // Read-only simulation source (never signs)
-const READ_SOURCE = 'GBF6KUW5D7B5BGODLDSZ4OMR45MWWZCPNEKQBDUNJE3FNAPHCVUR3QSN6QZMTPMMRRIKRW3FCYP7';
+const READ_SOURCE = 'GCXDC2N64QG2X4KYPWWK2SQVLD3PWGXF3UFJ6HZBJWGHIIKZGKAT2YMZ';
 
 async function readCall(contractId, method, args = []) {
   const { StellarSdk, server } = await sdkAndServer();
