@@ -17,11 +17,11 @@ Most ZK compliance demos prove that a user clicked a self-reported checkbox. **P
 
 ProofPass is not another wallet or off-ramp — it is the **shared compliance layer** that payment apps, B2B marketplaces, and tokenized asset platforms on Stellar can plug into:
 
-1. **Regulated B2B Commerce (Nigeria & Ghana):** Wholesale pharmaceutical distributors and licensed pharmacies (e.g., Pharmacy Council of Nigeria / Ghana Pharmacy Council workflows) settling controlled medical stock in USDC without emailing raw license PDFs to every vendor or exposing themselves to counterfeit-license fraud.
-2. **African RWA & Cross-Border Yield Platforms:** Stablecoin wealth apps bringing tokenized US T-bills, global equities, and yield pools to eligible investors — letting one verified Pass unlock multiple protocols while enforcing `AUTH_REQUIRED` / `AUTH_REVOCABLE` trustline controls natively on Stellar.
+1. **Regulated B2B Commerce (Nigeria & Ghana):** Wholesale pharmaceutical distributors and licensed pharmacies (e.g., Pharmacy Council of Nigeria and Pharmacy Council of Ghana licensing workflows) settling controlled medical stock in USDC without emailing raw license PDFs to every vendor or exposing themselves to counterfeit-license fraud.
+2. **African RWA & Cross-Border Yield Platforms:** Stablecoin wealth apps bringing tokenized US T-bills, global equities, and yield pools to eligible investors — letting one verified Pass unlock multiple protocols while enforcing native Stellar asset-level authorization and instant revocation.
 3. **Compliance Admins & Issuers:** Regulators, licensed distributors, and fund issuers who need document-date-anchored expiry, one-time replay protection, and instant on-chain revocation across every connected asset — without holding a breachable database of customer PDFs.
 
-Adding a new country or regulator (PCN, NAFDAC, SEC Nigeria, Ghana FDA, CAC) does not require rebuilding ProofPass: it is a new policy ID and approved issuer certificate hash on the exact same `ZkInvestorGate` contract.
+Supporting a new country or licensing body (Pharmacy Council of Nigeria, Pharmacy Council of Ghana, SEC Nigeria, CAC) keeps the **same deployed gate contract** (adding a policy ID and approved issuer certificate hash); if the new authority uses different license wording, that ships as a proof program update via `update_program_vkey`.
 
 ---
 
@@ -32,7 +32,7 @@ Every market calls `ZkInvestorGate::is_authorized(wallet, policy_id)` **live on 
 | Market | Required Pass | What It Demonstrates | Live Testnet Contract |
 |---|---|---|---|
 | **Market 1 — `sTBILL` Treasury Vault** | **Pass #1** (`ACCREDITED_INVESTOR`) | Deposit USDC and receive 1:1 `AUTH_REQUIRED` / `AUTH_REVOCABLE` `sTBILL` shares whose trustline is authorized and revoked automatically by the gate | [`CARQIV...D6S37`](https://stellar.expert/explorer/testnet/contract/CARQIVAXOS4RA2YIBHT6DPVECNZTXMJ7ZVFRUT2SYX2QB4VXVB5D6S37) |
-| **Market 2 — Cross-Border Yield Vault (`sYIELD`, 8.4% APY)** | **Pass #1** (`ACCREDITED_INVESTOR`) | **Same Pass, Second Protocol:** one verified Pass unlocks a second independent vault; principal `redeem` remains safe even after expiry or revocation | [`CBH2KI...XNJX`](https://stellar.expert/explorer/testnet/contract/CBH2KI7D7SP3YTRGF4LJFOFF7ASZSCXZECVE4PVESBMGSCGUTET6XNJX) |
+| **Market 2 — Cross-Border Yield Vault (`sYIELD`, 8.4% illustrative APY)** | **Pass #1** (`ACCREDITED_INVESTOR`) | **Same Pass, Second Protocol:** one verified Pass unlocks a second independent vault; principal `redeem` remains safe even after expiry or revocation | [`CBH2KI...XNJX`](https://stellar.expert/explorer/testnet/contract/CBH2KI7D7SP3YTRGF4LJFOFF7ASZSCXZECVE4PVESBMGSCGUTET6XNJX) |
 | **Market 3 — Regulated Medical Supply B2B Checkout** | **Pass #2** (`LICENSED_PHARMACIST`) | **Strict Policy Isolation:** wholesale cold-chain insulin & antimalarial USDC checkout — stays **locked** even for Pass #1 holders and unlocks only with a valid Pharmacist Pass | [`CCDFM4...NPHN`](https://stellar.expert/explorer/testnet/contract/CCDFM4P5CS56BAVXUFBPD6AC4B7IVMI7MX5SEXMWSZVAK2KOAZERNPHN) |
 
 ---
@@ -63,8 +63,8 @@ For full transparency with judges and reviewers:
 
 ### Testnet vs. Production Issuer Trust Model & Known Limits
 - **Testnet stand-ins:** Policy 1 (`ACCREDITED_INVESTOR`) trusts DocuSign's real AATL seal (`CN=DocuSign, Inc.` under DigiCert Trusted Root G4) so anyone can test with real DocuSign-signed documents today. Policy 2 (`LICENSED_PHARMACIST`) uses a clearly labeled Testnet mock Pharmacy Board CA (`certs/testnet_mock_pharmacy_root.der`).
-- **Production path:** Each policy allowlists specific licensed issuers' certificates — e.g., a CPA firm, VerifyInvestor, Pharmacy Council of Nigeria, or Ghana FDA — under standard AATL/national PKI roots; the verification architecture stays identical, only the on-chain allowlist changes.
-- **Privacy scope (accurate disclosure):** Zero personal PII or PDFs ever leave the user's device, and `Credential` storage/events persist only `expires_at` and `revoked`. Note that the `verify_and_authorize` transaction arguments (`issuer_hash`, `doc_timestamp`, `nullifier`) remain publicly visible on block explorers; checking issuers against a Merkle root inside the guest so only `expires_at` is exposed on-chain is on the post-buildathon roadmap.
+- **Production path:** Each policy allowlists specific licensed issuers' certificates — e.g., a CPA firm, VerifyInvestor, Pharmacy Council of Nigeria, or Pharmacy Council of Ghana — under standard AATL/national PKI roots; the gate contract stays the same, and any new license wording ships as a proof program update (`update_program_vkey`).
+- **Privacy scope (accurate disclosure):** Zero personal PII or PDFs ever leave the user's device, and `Credential` storage/events persist only `expires_at` and `revoked`. Note two current privacy limits: (1) the `verify_and_authorize` transaction arguments (`issuer_hash`, `doc_timestamp`, `nullifier`) remain publicly visible on block explorers; and (2) because `nullifier` is derived as `sha256(rsa_signature)`, anyone who holds the signed PDF — including the issuing CPA firm or pharmacy council — can compute the same nullifier, locate the transaction on-chain, and link that wallet to that person. Checking issuers against a Merkle root inside the guest and blinding issuer-linkable nullifiers are on the post-buildathon roadmap.
 - **Known guest prototype limits:** (1) affirmative sentence matching uses whitespace-normalized substring matching (extra qualifying clauses appended *after* the full sentence are not parsed semantically), and (2) leaf certificate Extended Key Usage (`id-kp-documentSigning`) is not separately enforced in-guest beyond the per-policy `issuer_hash` allowlist.
 
 ---
